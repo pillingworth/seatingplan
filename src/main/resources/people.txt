@@ -1,0 +1,26 @@
+Alice, host
+Bob, host
+Charlie, host
+Dan, host
+Eve, host
+Faith
+Grace
+Heidi
+Ivan
+Judy
+Kit
+Laura
+Mallory
+Niaj
+Olivia
+Peggy
+Quentin
+Rupert
+Sybil
+Trent
+Uma
+# Victor
+# Walter
+# Xavier
+Yoko
+Zac
