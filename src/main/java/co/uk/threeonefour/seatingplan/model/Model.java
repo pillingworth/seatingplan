@@ -8,19 +8,19 @@ public interface Model {
 
     void addCourse(Course course);
 
-    long countCourses();
+    long countAllCourses();
 
     Iterable<Course> findAllCourses();
 
     void addTable(Table table);
 
-    long countTables();
+    long countAllTables();
 
     Iterable<Table> findAllTables();
 
     void addPerson(Person person);
 
-    long countPeople();
+    long countAllPeople();
 
     Iterable<Person> findAllPeople();
 
@@ -30,23 +30,21 @@ public interface Model {
 
     void addSeating(Person host, Course course, Table table);
 
-    void clearSeating();
+    void deleteAllSeating();
 
-    Optional<Table> findSeatingTableByPersonAndCourse(Person person, Course course);
+    Optional<Table> findTableByPersonAndCourse(Person person, Course course);
 
-    long seatingCountPeopleByHostAndCourseAndTable(boolean host, Course course, Table table);
+    long countAllPeopleByHostAndCourseAndTable(boolean host, Course course, Table table);
 
-    long countDistinctTablesByPerson(Person host);
+    long countAllDistinctTablesByPerson(Person person);
 
-    Iterable<Person> seatingFindAllDistinctPeopleMetByPerson(Person person);
+    Iterable<Person> findAllDistinctPeopleMetByPerson(Person person);
     
-    long seatingCountAllDistinctPeopleMetByPerson(Person person);
+    long countAllDistinctPeopleMetByPerson(Person person);
     
-    Iterable<Person> seatingFindAllPeopleByCourseAndTable(Course course, Table table);
+    Iterable<Person> findAllPeopleByCourseAndTable(Course course, Table table);
 
-    Iterable<Table> seatingFindAllDistinctTablesByPerson(Person person);
+    Iterable<Table> findAllDistinctTablesByPerson(Person person);
     
-    long seatingCountAllDistinctTablesByPerson(Person person);
-    
-    void swap(Course course, Person person1, Person person2);
+    void swapPeopleOnCourse(Course course, Person person1, Person person2);
 }

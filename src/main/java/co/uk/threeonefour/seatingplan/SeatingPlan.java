@@ -46,7 +46,7 @@ public class SeatingPlan implements Runnable {
     private Path peopleFilePath;
 
     @Option(names = { "-i",
-            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "500")
+            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "10000")
     private int iterations;
 
     @Override
@@ -54,45 +54,9 @@ public class SeatingPlan implements Runnable {
 
         Model model = new TripleModel();
 
-        /* read in the list of people */
-        if (!Files.exists(peopleFilePath) || Files.isDirectory(peopleFilePath)) {
-            LOG.error("Unable to open {} as it either could not be found or is not a file.", peopleFilePath);
-            return;
-        }
+        initialiseModel(model);
 
-        try (Scanner scanner = new Scanner(peopleFilePath)) {
-            int i = 0;
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine().trim();
-                if (!line.startsWith("#")) {
-                    int id = (i + 1);
-                    String name = StringUtils.substringBeforeLast(line, ",").trim();
-                    boolean host = "host".equalsIgnoreCase(StringUtils.substringAfterLast(line, ",").trim());
-                    model.addPerson(new Person(id, name, host));
-                    i++;
-                }
-            }
-        } catch (IOException e) {
-            LOG.error("Unable to read the people file {}", peopleFilePath, e);
-            return;
-        }
-
-        /* create a list of Courses */
-        for (var i = 0; i < numberOfCourses; i++) {
-            int id = i + 1;
-            model.addCourse(new Course(id, "Course " + id));
-        }
-
-        /* create a list of Tables */
-        for (var i = 0; i < numberOfTables; i++) {
-            int id = i + 1;
-            model.addTable(new Table(id, "Table " + id));
-        }
-
-        /* use repeatable random numbers if required */
-        var random = (seed == 0) ? new Random() : new Random(seed);
-
-        long numberOfPeople = model.countPeople();
+        long numberOfPeople = model.countAllPeople();
         long numberOfHosts = model.countPeopleByHost(true);
         long maxPeoplePerTable = (int) Math.ceil((double) numberOfPeople / numberOfTables);
         long mostPeopleAPersonCanMeet = numberOfCourses * (maxPeoplePerTable - 1);
@@ -106,9 +70,12 @@ public class SeatingPlan implements Runnable {
         double bestScore = 0;
         int bestIteration = -1;
 
+        /* use repeatable random numbers if required */
+        var random = (seed == 0) ? new Random() : new Random(seed);
+
         for (int iteration = 0; iteration < iterations; iteration++) {
 
-            model.clearSeating();
+            model.deleteAllSeating();
 
             /*
              * method 1:
@@ -148,7 +115,7 @@ public class SeatingPlan implements Runnable {
             /* make sure one and only one host per table for each course */
             for (var tables : model.findAllTables()) {
                 for (var courses : model.findAllCourses()) {
-                    long hosts = model.seatingCountPeopleByHostAndCourseAndTable(true, courses, tables);
+                    long hosts = model.countAllPeopleByHostAndCourseAndTable(true, courses, tables);
                     if (hosts != 1) {
                         valid = false;
                         break;
@@ -158,7 +125,7 @@ public class SeatingPlan implements Runnable {
 
             /* make sure host only sits on one table */
             for (var host : model.findAllPeopleByHost(true)) {
-                var numTables = model.countDistinctTablesByPerson(host);
+                var numTables = model.countAllDistinctTablesByPerson(host);
                 if (numTables != 1) {
                     valid = false;
                     break;
@@ -168,7 +135,7 @@ public class SeatingPlan implements Runnable {
             /* how many different people does each person get to sit with */
             var personToDifferentPeopleScore = new HashMap<Person, Double>();
             for (var person : model.findAllPeople()) {
-                var peopleMet = model.seatingCountAllDistinctPeopleMetByPerson(person);
+                var peopleMet = model.countAllDistinctPeopleMetByPerson(person);
                 double score = peopleMet / (double) mostPeopleAPersonCanMeet;
                 personToDifferentPeopleScore.put(person, score);
             }
@@ -176,7 +143,7 @@ public class SeatingPlan implements Runnable {
             /* how many different tables does each person get to sit on */
             var personToDifferentTableScore = new HashMap<Person, Double>();
             for (var person : model.findAllPeopleByHost(false)) {
-                var numTables = model.seatingCountAllDistinctTablesByPerson(person);
+                var numTables = model.countAllDistinctTablesByPerson(person);
                 double score = numTables / (double) mostNumberOfDifferentTablesAPersonCanSitAt;
                 personToDifferentTableScore.put(person, score);
 //                if (numTables != mostNumberOfDifferentTablesAPersonCanSitAt) {
@@ -206,86 +173,9 @@ public class SeatingPlan implements Runnable {
         /*
          * Print out the seating plan by person and table
          */
-
         if (bestModel != null) {
-
-            System.out.println(String.format("Best solution from iteration %d with a solution score %f", bestIteration,
-                    bestScore));
-
-            /* first the header rows */
-            int colWidth = 12;
-            System.out.println("");
-            for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
-
-                System.out.print("| ");
-                if (hdrRow == 0) {
-                    System.out.print(truncateAndPad("Name", colWidth));
-                } else {
-                    System.out.print(repeat('-', colWidth));
-                }
-                System.out.print(" | ");
-
-                for (Iterator<Course> it = bestModel.findAllCourses().iterator(); it.hasNext();) {
-                    Course course = it.next();
-                    if (hdrRow == 0) {
-                        System.out.print(truncateAndPad(course.getName(), colWidth));
-                    } else {
-                        System.out.print(repeat('-', colWidth));
-                    }
-                    if (it.hasNext()) {
-                        System.out.print(" | ");
-                    }
-                }
-
-                System.out.print(" | ");
-                if (hdrRow == 0) {
-                    System.out.print(truncateAndPad("# People", colWidth));
-                } else {
-                    System.out.print(repeat('-', colWidth));
-                }
-
-                System.out.print(" | ");
-                if (hdrRow == 0) {
-                    System.out.print(truncateAndPad("# Tables", colWidth));
-                } else {
-                    System.out.print(repeat('-', colWidth));
-                }
-
-                System.out.println(" |");
-            }
-
-            /* then the rows */
-            for (Iterator<Person> pit = bestModel.findAllPeople().iterator(); pit.hasNext();) {
-                Person person = pit.next();
-                System.out.print("| ");
-                System.out.print(truncateAndPad(person.getName(), colWidth));
-                System.out.print(" | ");
-                for (Iterator<Course> cit = bestModel.findAllCourses().iterator(); cit.hasNext();) {
-                    Course course = cit.next();
-                    // System.out.print(" ");
-                    bestModel.findSeatingTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
-                        System.out.print(truncateAndPad(table.getName(), colWidth));
-                    }, () -> {
-                        System.out.print(repeat(' ', colWidth));
-                    });
-                    System.out.print(" | ");
-                }
-                var peopleMet = bestModel.seatingCountAllDistinctPeopleMetByPerson(person);
-                System.out.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
-                System.out.print(" | ");
-                var tablesSatOn = bestModel.seatingCountAllDistinctTablesByPerson(person);
-                System.out.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
-                System.out.print(" |");
-                System.out.println();
-            }
-
-            /* and the footer */
-            System.out.print("|");
-            System.out.print(repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
-            System.out.println("|");
-        }
-
-        else {
+            printModel(bestModel, bestIteration, bestScore);
+        } else {
             System.out.println("No valid solution found");
         }
 
@@ -297,5 +187,123 @@ public class SeatingPlan implements Runnable {
 
     private static final String repeat(char ch, int times) {
         return StringUtils.repeat(ch, times);
+    }
+
+    protected void initialiseModel(Model model) {
+
+        /* read in the list of people */
+        if (!Files.exists(peopleFilePath) || Files.isDirectory(peopleFilePath)) {
+            LOG.error("Unable to open {} as it either could not be found or is not a file.", peopleFilePath);
+            return;
+        }
+
+        try (Scanner scanner = new Scanner(peopleFilePath)) {
+            int i = 0;
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine().trim();
+                if (!line.startsWith("#")) {
+                    int id = (i + 1);
+                    String name = StringUtils.substringBeforeLast(line, ",").trim();
+                    boolean host = "host".equalsIgnoreCase(StringUtils.substringAfterLast(line, ",").trim());
+                    model.addPerson(new Person(id, name, host));
+                    i++;
+                }
+            }
+        } catch (IOException e) {
+            LOG.error("Unable to read the people file {}", peopleFilePath, e);
+            return;
+        }
+
+        /* create a list of Courses */
+        for (var i = 0; i < numberOfCourses; i++) {
+            int id = i + 1;
+            model.addCourse(new Course(id, "Course " + id));
+        }
+
+        /* create a list of Tables */
+        for (var i = 0; i < numberOfTables; i++) {
+            int id = i + 1;
+            model.addTable(new Table(id, "Table " + id));
+        }
+    }
+    
+    protected void printModel(Model bestModel, long bestIteration, double bestScore) {
+        
+        System.out.println(String.format("Best solution from iteration %d with a solution score %f", bestIteration,
+                bestScore));
+
+        /* first the header rows */
+        int colWidth = 12;
+        System.out.println("");
+        for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
+
+            System.out.print("| ");
+            if (hdrRow == 0) {
+                System.out.print(truncateAndPad("Name", colWidth));
+            } else {
+                System.out.print(repeat('-', colWidth));
+            }
+            System.out.print(" | ");
+
+            for (Iterator<Course> it = bestModel.findAllCourses().iterator(); it.hasNext();) {
+                Course course = it.next();
+                if (hdrRow == 0) {
+                    System.out.print(truncateAndPad(course.getName(), colWidth));
+                } else {
+                    System.out.print(repeat('-', colWidth));
+                }
+                if (it.hasNext()) {
+                    System.out.print(" | ");
+                }
+            }
+
+            System.out.print(" | ");
+            if (hdrRow == 0) {
+                System.out.print(truncateAndPad("# People", colWidth));
+            } else {
+                System.out.print(repeat('-', colWidth));
+            }
+
+            System.out.print(" | ");
+            if (hdrRow == 0) {
+                System.out.print(truncateAndPad("# Tables", colWidth));
+            } else {
+                System.out.print(repeat('-', colWidth));
+            }
+
+            System.out.println(" |");
+        }
+
+        /* then the rows */
+        for (Iterator<Person> pit = bestModel.findAllPeople().iterator(); pit.hasNext();) {
+            Person person = pit.next();
+            System.out.print("| ");
+            System.out.print(truncateAndPad(person.getName(), colWidth));
+            System.out.print(" | ");
+            for (Iterator<Course> cit = bestModel.findAllCourses().iterator(); cit.hasNext();) {
+                Course course = cit.next();
+                // System.out.print(" ");
+                bestModel.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
+                    System.out.print(truncateAndPad(table.getName(), colWidth));
+                }, () -> {
+                    System.out.print(repeat(' ', colWidth));
+                });
+                System.out.print(" | ");
+            }
+            var peopleMet = bestModel.countAllDistinctPeopleMetByPerson(person);
+            System.out.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
+            System.out.print(" | ");
+            var tablesSatOn = bestModel.countAllDistinctTablesByPerson(person);
+            System.out.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
+            System.out.print(" |");
+            System.out.println();
+        }
+
+        /* and the footer */
+        System.out.print("|");
+        System.out.print(repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
+        System.out.println("|");
+        
+        
     }
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -48,7 +49,7 @@ public class TripleModel implements Model {
     }
 
     @Override
-    public long countCourses() {
+    public long countAllCourses() {
         return courses.size();
     }
 
@@ -63,7 +64,7 @@ public class TripleModel implements Model {
     }
 
     @Override
-    public long countTables() {
+    public long countAllTables() {
         return tables.size();
     }
 
@@ -78,7 +79,7 @@ public class TripleModel implements Model {
     }
 
     @Override
-    public long countPeople() {
+    public long countAllPeople() {
         return people.size();
     }
 
@@ -103,84 +104,68 @@ public class TripleModel implements Model {
     }
 
     @Override
-    public void clearSeating() {
+    public void deleteAllSeating() {
         seating.clear();
     }
 
     @Override
-    public Optional<Table> findSeatingTableByPersonAndCourse(Person person, Course course) {
+    public Optional<Table> findTableByPersonAndCourse(Person person, Course course) {
         return seating.stream().filter(triple -> triple.getLeft().equals(person) && triple.getMiddle().equals(course))
                 .map(triple -> triple.getRight()).findFirst();
     }
 
     @Override
-    public long seatingCountPeopleByHostAndCourseAndTable(boolean host, Course course, Table table) {
+    public long countAllPeopleByHostAndCourseAndTable(boolean host, Course course, Table table) {
         return seating.stream().filter(triple -> triple.getLeft().isHost() == host && triple.getMiddle().equals(course)
                 && triple.getRight().equals(table)).count();
     }
 
     @Override
-    public long countDistinctTablesByPerson(Person person) {
+    public long countAllDistinctTablesByPerson(Person person) {
         return seating.stream().filter(triple -> triple.getLeft().equals(person)).map(triple -> triple.getRight())
                 .collect(Collectors.toSet()).size();
     }
 
     @Override
-    public Iterable<Person> seatingFindAllDistinctPeopleMetByPerson(Person person) {
+    public Iterable<Person> findAllDistinctPeopleMetByPerson(Person person) {
         Set<Person> peopleMet = new HashSet<>();
-        seatingFindAllCourseTablePairsByPerson(person).forEach(courseTable -> {
+        findAllCourseTablePairsByPerson(person).forEach(courseTable -> {
             peopleMet.addAll(IterableUtils
-                    .toList(seatingFindAllPeopleByCourseAndTable(courseTable.getLeft(), courseTable.getRight())));
+                    .toList(findAllPeopleByCourseAndTable(courseTable.getLeft(), courseTable.getRight())));
         });
         return peopleMet;
     }
 
     @Override
-    public long seatingCountAllDistinctPeopleMetByPerson(Person person) {
+    public long countAllDistinctPeopleMetByPerson(Person person) {
         Set<Person> peopleMet = new HashSet<>();
-        seatingFindAllCourseTablePairsByPerson(person).forEach(courseTable -> {
+        findAllCourseTablePairsByPerson(person).forEach(courseTable -> {
             peopleMet.addAll(IterableUtils
-                    .toList(seatingFindAllPeopleByCourseAndTable(courseTable.getLeft(), courseTable.getRight())));
+                    .toList(findAllPeopleByCourseAndTable(courseTable.getLeft(), courseTable.getRight())));
         });
         return peopleMet.size();
     }
 
-    private Iterable<Pair<Course, Table>> seatingFindAllCourseTablePairsByPerson(Person person) {
+    private Stream<Pair<Course, Table>> findAllCourseTablePairsByPerson(Person person) {
         return seating.stream().filter(triple -> triple.getLeft().equals(person))
-                .map(triple -> ImmutablePair.of(triple.getMiddle(), triple.getRight())).collect(Collectors.toList());
+                .map(triple -> ImmutablePair.of(triple.getMiddle(), triple.getRight()));
     }
 
     @Override
-    public Iterable<Person> seatingFindAllPeopleByCourseAndTable(Course course, Table table) {
+    public Iterable<Person> findAllPeopleByCourseAndTable(Course course, Table table) {
         return seating.stream().filter(triple -> triple.getMiddle().equals(course) && triple.getRight().equals(table))
                 .map(triple -> triple.getLeft()).collect(Collectors.toList());
     }
 
     @Override
-    public long seatingCountAllDistinctTablesByPerson(Person person) {
-        Set<Table> tables = seating.stream().filter(triple -> triple.getLeft().equals(person))
-                .map(triple -> triple.getRight()).collect(Collectors.toSet());
-        return tables.size();
-    }
-
-    @Override
-    public Iterable<Table> seatingFindAllDistinctTablesByPerson(Person person) {
+    public Iterable<Table> findAllDistinctTablesByPerson(Person person) {
         Set<Table> tables = seating.stream().filter(triple -> triple.getLeft().equals(person))
                 .map(triple -> triple.getRight()).collect(Collectors.toSet());
         return tables;
     }
 
-    public List<Triple<Person, Course, Table>> getSeating() {
-        return new ArrayList<>(seating);
-    }
-
-    public void setSeating(List<Triple<Person, Course, Table>> seating) {
-        this.seating.clear();
-        this.seating.addAll(seating);
-    }
-
     @Override
-    public void swap(Course course, Person person1, Person person2) {
+    public void swapPeopleOnCourse(Course course, Person person1, Person person2) {
         Triple<Person, Course, Table> triple1 = seating.stream()
                 .filter(triple -> triple.getLeft().equals(person1) && triple.getMiddle().equals(course)).findFirst()
                 .orElse(null);
