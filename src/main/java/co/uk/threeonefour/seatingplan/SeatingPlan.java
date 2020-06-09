@@ -1,5 +1,6 @@
 package co.uk.threeonefour.seatingplan;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.IterableUtils;
@@ -17,10 +19,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import co.uk.threeonefour.seatingplan.model.Course;
-import co.uk.threeonefour.seatingplan.model.Model;
 import co.uk.threeonefour.seatingplan.model.Person;
+import co.uk.threeonefour.seatingplan.model.Scenario;
+import co.uk.threeonefour.seatingplan.model.SimpleScenario;
+import co.uk.threeonefour.seatingplan.model.Solution;
 import co.uk.threeonefour.seatingplan.model.Table;
-import co.uk.threeonefour.seatingplan.model.TripleModel;
+import co.uk.threeonefour.seatingplan.model.TripleListSolution;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -52,149 +56,53 @@ public class SeatingPlan implements Runnable {
     @Override
     public void run() {
 
-        Model model = new TripleModel();
+        /* build the scenario */
+        Scenario scenario;
+        try {
+            scenario = createScenario();
+        } catch (IOException e) {
+            LOG.error("Failed to create scenario.", e);
+            return;
+        }
 
-        initialiseModel(model);
-
-        long numberOfPeople = model.countAllPeople();
-        long numberOfHosts = model.countPeopleByHost(true);
-        long maxPeoplePerTable = (int) Math.ceil((double) numberOfPeople / numberOfTables);
-        long mostPeopleAPersonCanMeet = numberOfCourses * (maxPeoplePerTable - 1);
-        long mostNumberOfDifferentTablesAPersonCanSitAt = Math.min(numberOfTables, numberOfCourses);
-
-        System.out.println(
-                String.format("There are %d people on %d tables, so that's upto %d people per table with %d hosts",
-                        numberOfPeople, numberOfTables, maxPeoplePerTable, numberOfHosts));
-
-        Model bestModel = null;
+        /* find a good solution */
+        Solution bestSolution = null;
         double bestScore = 0;
         int bestIteration = -1;
-
-        /* use repeatable random numbers if required */
         var random = (seed == 0) ? new Random() : new Random(seed);
 
         for (int iteration = 0; iteration < iterations; iteration++) {
 
-            model.deleteAllSeating();
+            Solution solution = createSolution(scenario, random);
 
-            /*
-             * method 1:
-             * 
-             * + put one host on each table
-             * 
-             * + fill up the remaining spaces from a shuffled list of people
-             */
-            {
-                var tables = new ArrayList<>(IterableUtils.toList(model.findAllTables()));
-                for (var course : model.findAllCourses()) {
+            double score = scoreSolution(scenario, solution);
 
-                    /* add a host to each table */
-                    int tableNumber = 0;
-                    for (var host : model.findAllPeopleByHost(true)) {
-                        model.addSeating(host, course, tables.get(tableNumber++));
-                    }
+            System.out.println(String.format("Iteration %d solution score %f", iteration, score));
 
-                    // shuffle the remaining people
-                    var shuffledNonHosts = new ArrayList<>(IterableUtils.toList(model.findAllPeopleByHost(false)));
-                    Collections.shuffle(shuffledNonHosts, random);
-
-                    /* and then add them to the tables one at a time */
-                    tableNumber = 0;
-                    for (var person : shuffledNonHosts) {
-                        model.addSeating(person, course, tables.get(tableNumber));
-                        tableNumber++;
-                        if (tableNumber >= numberOfTables) {
-                            tableNumber = 0;
-                        }
-                    }
-                }
-            }
-
-            boolean valid = true;
-
-            /* make sure one and only one host per table for each course */
-            for (var tables : model.findAllTables()) {
-                for (var courses : model.findAllCourses()) {
-                    long hosts = model.countAllPeopleByHostAndCourseAndTable(true, courses, tables);
-                    if (hosts != 1) {
-                        valid = false;
-                        break;
-                    }
-                }
-            }
-
-            /* make sure host only sits on one table */
-            for (var host : model.findAllPeopleByHost(true)) {
-                var numTables = model.countAllDistinctTablesByPerson(host);
-                if (numTables != 1) {
-                    valid = false;
-                    break;
-                }
-            }
-
-            /* how many different people does each person get to sit with */
-            var personToDifferentPeopleScore = new HashMap<Person, Double>();
-            for (var person : model.findAllPeople()) {
-                var peopleMet = model.countAllDistinctPeopleMetByPerson(person);
-                double score = peopleMet / (double) mostPeopleAPersonCanMeet;
-                personToDifferentPeopleScore.put(person, score);
-            }
-
-            /* how many different tables does each person get to sit on */
-            var personToDifferentTableScore = new HashMap<Person, Double>();
-            for (var person : model.findAllPeopleByHost(false)) {
-                var numTables = model.countAllDistinctTablesByPerson(person);
-                double score = numTables / (double) mostNumberOfDifferentTablesAPersonCanSitAt;
-                personToDifferentTableScore.put(person, score);
-//                if (numTables != mostNumberOfDifferentTablesAPersonCanSitAt) {
-//                    valid = false;
-//                }
-            }
-
-            double avgPersonToDifferentPeopleScore = personToDifferentPeopleScore.values().stream()
-                    .collect(Collectors.averagingDouble(v -> v));
-            double avgPersonToDifferentTableScore = personToDifferentTableScore.values().stream()
-                    .collect(Collectors.averagingDouble(v -> v));
-            double solutionScore = valid ? (avgPersonToDifferentPeopleScore + avgPersonToDifferentTableScore) / 2 : 0.0;
-
-            System.out.println(String.format("Iteration %d solution score %f", iteration, solutionScore));
-
-            if (solutionScore > bestScore) {
-                if (bestIteration >= 0) {
-                    System.out.println(String.format("  better than previous of %f from iteration %d so updating",
-                            bestScore, bestIteration));
-                }
+            if (score > bestScore) {
                 bestIteration = iteration;
-                bestScore = solutionScore;
-                bestModel = model.copy();
+                bestScore = score;
+                bestSolution = solution;
             }
         }
 
-        /*
-         * Print out the seating plan by person and table
-         */
-        if (bestModel != null) {
-            printModel(bestModel, bestIteration, bestScore);
+        /* print the solution found */
+        if (bestSolution != null) {
+            printModel(scenario, bestSolution, bestIteration, bestScore);
         } else {
             System.out.println("No valid solution found");
         }
 
     }
 
-    private static final String truncateAndPad(String str, int width) {
-        return StringUtils.rightPad(StringUtils.truncate(str, width), width);
-    }
+    protected final Scenario createScenario() throws IOException {
 
-    private static final String repeat(char ch, int times) {
-        return StringUtils.repeat(ch, times);
-    }
-
-    protected void initialiseModel(Model model) {
+        SimpleScenario scenario = new SimpleScenario();
 
         /* read in the list of people */
         if (!Files.exists(peopleFilePath) || Files.isDirectory(peopleFilePath)) {
-            LOG.error("Unable to open {} as it either could not be found or is not a file.", peopleFilePath);
-            return;
+            throw new FileNotFoundException(
+                    "Unable to open " + peopleFilePath + " as it either could not be found or is not a file.");
         }
 
         try (Scanner scanner = new Scanner(peopleFilePath)) {
@@ -205,32 +113,30 @@ public class SeatingPlan implements Runnable {
                     int id = (i + 1);
                     String name = StringUtils.substringBeforeLast(line, ",").trim();
                     boolean host = "host".equalsIgnoreCase(StringUtils.substringAfterLast(line, ",").trim());
-                    model.addPerson(new Person(id, name, host));
+                    scenario.addPerson(new Person(id, name, host));
                     i++;
                 }
             }
-        } catch (IOException e) {
-            LOG.error("Unable to read the people file {}", peopleFilePath, e);
-            return;
         }
 
         /* create a list of Courses */
         for (var i = 0; i < numberOfCourses; i++) {
             int id = i + 1;
-            model.addCourse(new Course(id, "Course " + id));
+            scenario.addCourse(new Course(id, "Course " + id));
         }
 
         /* create a list of Tables */
         for (var i = 0; i < numberOfTables; i++) {
             int id = i + 1;
-            model.addTable(new Table(id, "Table " + id));
+            scenario.addTable(new Table(id, "Table " + id));
         }
+
+        return scenario;
     }
-    
-    protected void printModel(Model bestModel, long bestIteration, double bestScore) {
-        
-        System.out.println(String.format("Best solution from iteration %d with a solution score %f", bestIteration,
-                bestScore));
+
+    protected void printModel(Scenario scenario, Solution solution, long iteration, double score) {
+
+        System.out.println(String.format("Solution from iteration %d with a solution score %f", iteration, score));
 
         /* first the header rows */
         int colWidth = 12;
@@ -241,16 +147,16 @@ public class SeatingPlan implements Runnable {
             if (hdrRow == 0) {
                 System.out.print(truncateAndPad("Name", colWidth));
             } else {
-                System.out.print(repeat('-', colWidth));
+                System.out.print("-".repeat(colWidth));
             }
             System.out.print(" | ");
 
-            for (Iterator<Course> it = bestModel.findAllCourses().iterator(); it.hasNext();) {
+            for (Iterator<Course> it = scenario.findAllCourses().iterator(); it.hasNext();) {
                 Course course = it.next();
                 if (hdrRow == 0) {
                     System.out.print(truncateAndPad(course.getName(), colWidth));
                 } else {
-                    System.out.print(repeat('-', colWidth));
+                    System.out.print("-".repeat(colWidth));
                 }
                 if (it.hasNext()) {
                     System.out.print(" | ");
@@ -261,39 +167,39 @@ public class SeatingPlan implements Runnable {
             if (hdrRow == 0) {
                 System.out.print(truncateAndPad("# People", colWidth));
             } else {
-                System.out.print(repeat('-', colWidth));
+                System.out.print("-".repeat(colWidth));
             }
 
             System.out.print(" | ");
             if (hdrRow == 0) {
                 System.out.print(truncateAndPad("# Tables", colWidth));
             } else {
-                System.out.print(repeat('-', colWidth));
+                System.out.print("-".repeat(colWidth));
             }
 
             System.out.println(" |");
         }
 
         /* then the rows */
-        for (Iterator<Person> pit = bestModel.findAllPeople().iterator(); pit.hasNext();) {
+        for (Iterator<Person> pit = scenario.findAllPeople().iterator(); pit.hasNext();) {
             Person person = pit.next();
             System.out.print("| ");
             System.out.print(truncateAndPad(person.getName(), colWidth));
             System.out.print(" | ");
-            for (Iterator<Course> cit = bestModel.findAllCourses().iterator(); cit.hasNext();) {
+            for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
                 Course course = cit.next();
                 // System.out.print(" ");
-                bestModel.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
+                solution.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
                     System.out.print(truncateAndPad(table.getName(), colWidth));
                 }, () -> {
-                    System.out.print(repeat(' ', colWidth));
+                    System.out.print("-".repeat(colWidth));
                 });
                 System.out.print(" | ");
             }
-            var peopleMet = bestModel.countAllDistinctPeopleMetByPerson(person);
+            var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
             System.out.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
             System.out.print(" | ");
-            var tablesSatOn = bestModel.countAllDistinctTablesByPerson(person);
+            var tablesSatOn = solution.countAllDistinctTablesByPerson(person);
             System.out.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
             System.out.print(" |");
             System.out.println();
@@ -301,9 +207,120 @@ public class SeatingPlan implements Runnable {
 
         /* and the footer */
         System.out.print("|");
-        System.out.print(repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
+        System.out.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
+        
         System.out.println("|");
+    }
+    
+    private static final String truncateAndPad(String str, int width) {
+        return StringUtils.rightPad(StringUtils.truncate(str, width), width);
+    }
+
+    /*
+     * Simple random filling of tables.
+     * 
+     * 1. put one host on each table
+     * 
+     * 2. fill up the remaining spaces from a shuffled list of people
+     */
+    protected Solution createSolution(Scenario scenario, Random random) {
+
+        long startTime = System.nanoTime();
         
+        Solution solution = new TripleListSolution();
+
+        var tables = new ArrayList<>(IterableUtils.toList(scenario.findAllTables()));
+        for (var course : scenario.findAllCourses()) {
+
+            /* add a host to each table */
+            int tableNumber = 0;
+            for (var host : scenario.findAllPeopleByHost(true)) {
+                solution.addSeating(host, course, tables.get(tableNumber++));
+            }
+
+            // shuffle the remaining people
+            var shuffledNonHosts = new ArrayList<>(IterableUtils.toList(scenario.findAllPeopleByHost(false)));
+            Collections.shuffle(shuffledNonHosts, random);
+
+            /* and then add them to the tables one at a time */
+            tableNumber = 0;
+            for (var person : shuffledNonHosts) {
+                solution.addSeating(person, course, tables.get(tableNumber));
+                tableNumber++;
+                if (tableNumber >= numberOfTables) {
+                    tableNumber = 0;
+                }
+            }
+        }
         
+        long endTime = System.nanoTime();
+
+        System.out.println("Solution generated in " +  TimeUnit.NANOSECONDS.toMicros(endTime - startTime) + "us");
+
+        return solution;
+    }
+    
+    protected double scoreSolution(Scenario scenario, Solution solution) {
+        
+        long startTime = System.nanoTime();
+        
+        boolean valid = true;
+
+        /* make sure one and only one host per table for each course */
+        for (var tables : scenario.findAllTables()) {
+            for (var courses : scenario.findAllCourses()) {
+                long hosts = solution.countAllPeopleByHostAndCourseAndTable(true, courses, tables);
+                if (hosts != 1) {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+
+        /* make sure host only sits on one table */
+        for (var host : scenario.findAllPeopleByHost(true)) {
+            var numTables = solution.countAllDistinctTablesByPerson(host);
+            if (numTables != 1) {
+                valid = false;
+                break;
+            }
+        }
+        
+        long numberOfPeople = scenario.countAllPeople();
+        long maxPeoplePerTable = (int) Math.ceil((double) numberOfPeople / numberOfTables);
+        long mostPeopleAPersonCanMeet = numberOfCourses * (maxPeoplePerTable - 1);
+        long mostNumberOfDifferentTablesAPersonCanSitAt = Math.min(numberOfTables, numberOfCourses);
+
+        /* how many different people does each person get to sit with */
+        var personToDifferentPeopleScore = new HashMap<Person, Double>();
+        for (var person : scenario.findAllPeople()) {
+            var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
+            double score = peopleMet / (double) mostPeopleAPersonCanMeet;
+            personToDifferentPeopleScore.put(person, score);
+        }
+
+        /* how many different tables does each person get to sit on */
+        var personToDifferentTableScore = new HashMap<Person, Double>();
+        for (var person : scenario.findAllPeopleByHost(false)) {
+            var numTables = solution.countAllDistinctTablesByPerson(person);
+            double score = numTables / (double) mostNumberOfDifferentTablesAPersonCanSitAt;
+            personToDifferentTableScore.put(person, score);
+//            if (numTables != mostNumberOfDifferentTablesAPersonCanSitAt) {
+//                valid = false;
+//            }
+        }
+
+        double avgPersonToDifferentPeopleScore = personToDifferentPeopleScore.values().stream()
+                .collect(Collectors.averagingDouble(v -> v));
+        double avgPersonToDifferentTableScore = personToDifferentTableScore.values().stream()
+                .collect(Collectors.averagingDouble(v -> v));
+        double solutionScore = valid ? (avgPersonToDifferentPeopleScore + avgPersonToDifferentTableScore) / 2 : 0.0;
+        
+        long endTime = System.nanoTime();
+
+        System.out.println("Solution scored in " +  TimeUnit.NANOSECONDS.toMicros(endTime - startTime) + "us");
+
+        
+        return solutionScore;
     }
 }
