@@ -53,3 +53,34 @@ To run with 4 courses, 5 tables, iterate the solution 10000 times using the swap
 Alternatively there is a .bat file that make this a bit easier to run
 
 This requires JDK11 (for no other reason that the code was written and compiled using JDK11).
+
+## Example output
+
+Solution score 0.921196
+
+| Name         | Course 1     | Course 2     | Course 3     | Course 4     | # People     | # Tables     |
+| ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ |
+| Alice        | Table 1      | Table 1      | Table 1      | Table 1      | 16           | 1            |
+| Bob          | Table 2      | Table 2      | Table 2      | Table 2      | 16           | 1            |
+| Charlie      | Table 3      | Table 3      | Table 3      | Table 3      | 16           | 1            |
+| Dan          | Table 4      | Table 4      | Table 4      | Table 4      | 12           | 1            |
+| Eve          | Table 5      | Table 5      | Table 5      | Table 5      | 12           | 1            |
+| Faith        | Table 1      | Table 3      | Table 5      | Table 2      | 13           | 4            |
+| Grace        | Table 3      | Table 2      | Table 1      | Table 4      | 14           | 4            |
+| Heidi        | Table 1      | Table 5      | Table 2      | Table 4      | 13           | 4            |
+| Ivan         | Table 5      | Table 4      | Table 1      | Table 2      | 14           | 4            |
+| Judy         | Table 4      | Table 3      | Table 1      | Table 5      | 14           | 4            |
+| Kit          | Table 2      | Table 3      | Table 4      | Table 1      | 13           | 4            |
+| Laura        | Table 1      | Table 4      | Table 2      | Table 3      | 14           | 4            |
+| Mallory      | Table 3      | Table 1      | Table 2      | Table 5      | 12           | 4            |
+| Niaj         | Table 5      | Table 2      | Table 4      | Table 3      | 14           | 4            |
+| Olivia       | Table 2      | Table 1      | Table 5      | Table 3      | 14           | 4            |
+| Peggy        | Table 2      | Table 5      | Table 1      | Table 3      | 14           | 4            |
+| Quentin      | Table 3      | Table 1      | Table 2      | Table 5      | 12           | 4            |
+| Rupert       | Table 4      | Table 2      | Table 3      | Table 1      | 12           | 4            |
+| Sybil        | Table 3      | Table 2      | Table 5      | Table 1      | 13           | 4            |
+| Trent        | Table 1      | Table 3      | Table 4      | Table 2      | 12           | 4            |
+| Uma          | Table 2      | Table 4      | Table 3      | Table 1      | 13           | 4            |
+| Yoko         | Table 5      | Table 1      | Table 3      | Table 4      | 14           | 4            |
+| Zac          | Table 4      | Table 5      | Table 3      | Table 2      | 13           | 4            |
+|--------------------------------------------------------------------------------------------------------|
