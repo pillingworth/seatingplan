@@ -4,6 +4,8 @@ import java.util.Optional;
 
 public interface Solution {
 
+    Solution copy();
+    
     void addSeating(Person host, Course course, Table table);
 
     Optional<Table> findTableByPersonAndCourse(Person person, Course course);

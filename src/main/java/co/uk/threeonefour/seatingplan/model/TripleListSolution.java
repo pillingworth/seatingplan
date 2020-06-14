@@ -19,6 +19,15 @@ public class TripleListSolution implements Solution {
         this.triples = new ArrayList<>();
     }
 
+    private TripleListSolution(TripleListSolution orig) {
+        this.triples = new ArrayList<>(orig.triples);
+    }
+    
+    @Override
+    public Solution copy() {
+        return new TripleListSolution(this);
+    }
+    
     @Override
     public void addSeating(Person person, Course course, Table table) {
         triples.add(ImmutableTriple.of(person, course, table));

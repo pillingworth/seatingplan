@@ -1,0 +1,1 @@
+java -jar ./target/seatingplan-0.0.1-SNAPSHOT-jar-with-dependencies.jar -s 1 -c 4 -t 5 -i 10000 -st swap -pf ./src/main/resources/people.txt

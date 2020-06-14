@@ -2,12 +2,15 @@ package co.uk.threeonefour.seatingplan;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +18,8 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +55,12 @@ public class SeatingPlan implements Runnable {
     private Path peopleFilePath;
 
     @Option(names = { "-i",
-            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "10000")
+            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "1000")
     private int iterations;
+
+    @Option(names = { "-st",
+            "--strategy" }, description = "Which strategies to use. Options are random|walk", paramLabel = "<strategies>", defaultValue = "swap")
+    private List<String> strategies;
 
     @Override
     public void run() {
@@ -65,34 +74,29 @@ public class SeatingPlan implements Runnable {
             return;
         }
 
-        /* find a good solution */
-        Solution bestSolution = null;
-        double bestScore = 0;
-        int bestIteration = -1;
-        var random = (seed == 0) ? new Random() : new Random(seed);
+        Pair<Solution, Double> solutionScore;
 
-        for (int iteration = 0; iteration < iterations; iteration++) {
-
-            Solution solution = createSolution(scenario, random);
-
-            double score = scoreSolution(scenario, solution);
-
-            System.out.println(String.format("Iteration %d solution score %f", iteration, score));
-
-            if (score > bestScore) {
-                bestIteration = iteration;
-                bestScore = score;
-                bestSolution = solution;
+        /* Solution strategy #1 */
+        if (strategies.contains("random")) {
+            solutionScore = bestRandomGuessStrategy(scenario, null);
+            /* print the solution found */
+            if (solutionScore.getLeft() != null) {
+                printModel(scenario, solutionScore.getLeft(), solutionScore.getRight());
+            } else {
+                LOG.error("No valid solution found");
             }
         }
 
-        /* print the solution found */
-        if (bestSolution != null) {
-            printModel(scenario, bestSolution, bestIteration, bestScore);
-        } else {
-            System.out.println("No valid solution found");
+        /* Solution strategy #2 */
+        if (strategies.contains("swap")) {
+            solutionScore = tweakAndRepeatStrategy(scenario, null /* solutionScore.getLeft() */);
+            /* print the solution found */
+            if (solutionScore.getLeft() != null) {
+                printModel(scenario, solutionScore.getLeft(), solutionScore.getRight());
+            } else {
+                LOG.error("No valid solution found");
+            }
         }
-
     }
 
     protected final Scenario createScenario() throws IOException {
@@ -134,84 +138,105 @@ public class SeatingPlan implements Runnable {
         return scenario;
     }
 
-    protected void printModel(Scenario scenario, Solution solution, long iteration, double score) {
+    protected void printModel(Scenario scenario, Solution solution, double score) {
 
-        System.out.println(String.format("Solution from iteration %d with a solution score %f", iteration, score));
+        try (LoggingPrintWriter lpw = new LoggingPrintWriter()) {
 
-        /* first the header rows */
-        int colWidth = 12;
-        System.out.println("");
-        for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
+            lpw.println();
+            lpw.println(String.format("Solution score %f", score));
 
-            System.out.print("| ");
-            if (hdrRow == 0) {
-                System.out.print(truncateAndPad("Name", colWidth));
-            } else {
-                System.out.print("-".repeat(colWidth));
-            }
-            System.out.print(" | ");
+            /* first the header rows */
+            int colWidth = 12;
+            lpw.println("");
+            for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
 
-            for (Iterator<Course> it = scenario.findAllCourses().iterator(); it.hasNext();) {
-                Course course = it.next();
+                lpw.print("| ");
                 if (hdrRow == 0) {
-                    System.out.print(truncateAndPad(course.getName(), colWidth));
+                    lpw.print(truncateAndPad("Name", colWidth));
                 } else {
-                    System.out.print("-".repeat(colWidth));
+                    lpw.print("-".repeat(colWidth));
                 }
-                if (it.hasNext()) {
-                    System.out.print(" | ");
+                lpw.print(" | ");
+
+                for (Iterator<Course> it = scenario.findAllCourses().iterator(); it.hasNext();) {
+                    Course course = it.next();
+                    if (hdrRow == 0) {
+                        lpw.print(truncateAndPad(course.getName(), colWidth));
+                    } else {
+                        lpw.print("-".repeat(colWidth));
+                    }
+                    if (it.hasNext()) {
+                        lpw.print(" | ");
+                    }
                 }
+
+                lpw.print(" | ");
+                if (hdrRow == 0) {
+                    lpw.print(truncateAndPad("# People", colWidth));
+                } else {
+                    lpw.print("-".repeat(colWidth));
+                }
+
+                lpw.print(" | ");
+                if (hdrRow == 0) {
+                    lpw.print(truncateAndPad("# Tables", colWidth));
+                } else {
+                    lpw.print("-".repeat(colWidth));
+                }
+
+                lpw.println(" |");
             }
 
-            System.out.print(" | ");
-            if (hdrRow == 0) {
-                System.out.print(truncateAndPad("# People", colWidth));
-            } else {
-                System.out.print("-".repeat(colWidth));
+            /* then the rows */
+            for (Iterator<Person> pit = scenario.findAllPeople().iterator(); pit.hasNext();) {
+                Person person = pit.next();
+                lpw.print("| ");
+                lpw.print(truncateAndPad(person.getName(), colWidth));
+                lpw.print(" | ");
+                for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
+                    Course course = cit.next();
+                    // lpw.print(" ");
+                    solution.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
+                        lpw.print(truncateAndPad(table.getName(), colWidth));
+                    }, () -> {
+                        lpw.print("-".repeat(colWidth));
+                    });
+                    lpw.print(" | ");
+                }
+                var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
+                lpw.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
+                lpw.print(" | ");
+                var tablesSatOn = solution.countAllDistinctTablesByPerson(person);
+                lpw.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
+                lpw.print(" |");
+                lpw.println();
             }
 
-            System.out.print(" | ");
-            if (hdrRow == 0) {
-                System.out.print(truncateAndPad("# Tables", colWidth));
-            } else {
-                System.out.print("-".repeat(colWidth));
-            }
+            /* and the footer */
+            lpw.print("|");
+            lpw.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
 
-            System.out.println(" |");
+            lpw.println("|");
         }
-
-        /* then the rows */
-        for (Iterator<Person> pit = scenario.findAllPeople().iterator(); pit.hasNext();) {
-            Person person = pit.next();
-            System.out.print("| ");
-            System.out.print(truncateAndPad(person.getName(), colWidth));
-            System.out.print(" | ");
-            for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
-                Course course = cit.next();
-                // System.out.print(" ");
-                solution.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
-                    System.out.print(truncateAndPad(table.getName(), colWidth));
-                }, () -> {
-                    System.out.print("-".repeat(colWidth));
-                });
-                System.out.print(" | ");
-            }
-            var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
-            System.out.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
-            System.out.print(" | ");
-            var tablesSatOn = solution.countAllDistinctTablesByPerson(person);
-            System.out.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
-            System.out.print(" |");
-            System.out.println();
-        }
-
-        /* and the footer */
-        System.out.print("|");
-        System.out.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
-        
-        System.out.println("|");
     }
-    
+
+    private static final class LoggingPrintWriter extends PrintWriter {
+        LoggingPrintWriter() {
+            super(new StringWriter());
+        }
+
+        public void println(String str) {
+            super.print(str);
+            println();
+        }
+
+        public void println() {
+            flush();
+            LOG.info(out.toString());
+            ((StringWriter) out).getBuffer().setLength(0);
+        }
+    }
+
     private static final String truncateAndPad(String str, int width) {
         return StringUtils.rightPad(StringUtils.truncate(str, width), width);
     }
@@ -226,7 +251,7 @@ public class SeatingPlan implements Runnable {
     protected Solution createSolution(Scenario scenario, Random random) {
 
         long startTime = System.nanoTime();
-        
+
         Solution solution = new TripleListSolution();
 
         var tables = new ArrayList<>(IterableUtils.toList(scenario.findAllTables()));
@@ -238,7 +263,7 @@ public class SeatingPlan implements Runnable {
                 solution.addSeating(host, course, tables.get(tableNumber++));
             }
 
-            // shuffle the remaining people
+            /* shuffle the remaining people */
             var shuffledNonHosts = new ArrayList<>(IterableUtils.toList(scenario.findAllPeopleByHost(false)));
             Collections.shuffle(shuffledNonHosts, random);
 
@@ -252,18 +277,17 @@ public class SeatingPlan implements Runnable {
                 }
             }
         }
-        
-        long endTime = System.nanoTime();
 
-        System.out.println("Solution generated in " +  TimeUnit.NANOSECONDS.toMicros(endTime - startTime) + "us");
+        long endTime = System.nanoTime();
+        LOG.debug("Solution generated in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
 
         return solution;
     }
-    
+
     protected double scoreSolution(Scenario scenario, Solution solution) {
-        
+
         long startTime = System.nanoTime();
-        
+
         boolean valid = true;
 
         /* make sure one and only one host per table for each course */
@@ -285,7 +309,7 @@ public class SeatingPlan implements Runnable {
                 break;
             }
         }
-        
+
         long numberOfPeople = scenario.countAllPeople();
         long maxPeoplePerTable = (int) Math.ceil((double) numberOfPeople / numberOfTables);
         long mostPeopleAPersonCanMeet = numberOfCourses * (maxPeoplePerTable - 1);
@@ -305,22 +329,123 @@ public class SeatingPlan implements Runnable {
             var numTables = solution.countAllDistinctTablesByPerson(person);
             double score = numTables / (double) mostNumberOfDifferentTablesAPersonCanSitAt;
             personToDifferentTableScore.put(person, score);
-//            if (numTables != mostNumberOfDifferentTablesAPersonCanSitAt) {
-//                valid = false;
-//            }
         }
 
         double avgPersonToDifferentPeopleScore = personToDifferentPeopleScore.values().stream()
                 .collect(Collectors.averagingDouble(v -> v));
         double avgPersonToDifferentTableScore = personToDifferentTableScore.values().stream()
                 .collect(Collectors.averagingDouble(v -> v));
-        double solutionScore = valid ? (avgPersonToDifferentPeopleScore + avgPersonToDifferentTableScore) / 2 : 0.0;
-        
+        /* combine scores with weightings */
+        double solutionScore = valid ? avgPersonToDifferentPeopleScore * 0.5D + avgPersonToDifferentTableScore * 0.5D
+                : 0.0;
+
         long endTime = System.nanoTime();
 
-        System.out.println("Solution scored in " +  TimeUnit.NANOSECONDS.toMicros(endTime - startTime) + "us");
+        LOG.debug("Solution scored in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
 
-        
         return solutionScore;
     }
+
+    /**
+     * Repeatedly generate random solutions, score them and keep the best one
+     * 
+     * @param scenario
+     *            the scenario to solve
+     * @param initialSolution
+     *            an initial solution to start with
+     * @return the best solution found or null if no valid solution found
+     */
+    public Pair<Solution, Double> bestRandomGuessStrategy(Scenario scenario, Solution initialSolution) {
+
+        long startTime = System.nanoTime();
+
+        /* random but repeatable */
+        var random = (seed == 0) ? new Random() : new Random(seed);
+
+        Solution bestSolution = initialSolution;
+        double bestScore = (initialSolution == null) ? 0 : scoreSolution(scenario, initialSolution);
+
+        LOG.info(String.format("Initial solution score %f", bestScore));
+
+        for (int iteration = 0; iteration < iterations; iteration++) {
+
+            Solution solution = createSolution(scenario, random);
+
+            double score = scoreSolution(scenario, solution);
+
+            LOG.info(String.format("Iteration %d solution score %f", iteration, score));
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestSolution = solution;
+            }
+        }
+
+        long endTime = System.nanoTime();
+        LOG.info("bestRandomGuessStrategy generated {} solutions in {} ms with a best score of {}", iterations,
+                TimeUnit.NANOSECONDS.toMillis(endTime - startTime), bestScore);
+
+        return new ImmutablePair<Solution, Double>(bestSolution, bestScore);
+    }
+
+    /**
+     * Generate a random solution, them tweak it, score it and repeat
+     * 
+     * @param scenario
+     *            the scenario to solve
+     * @param initialSolution
+     *            a solution to start with to see if it can be improved
+     * @return the best solution found or null if no valid solution found
+     */
+    public Pair<Solution, Double> tweakAndRepeatStrategy(Scenario scenario, Solution initialSolution) {
+
+        long startTime = System.nanoTime();
+
+        /* random but repeatable */
+        var random = (seed == 0) ? new Random() : new Random(seed);
+
+        Solution solution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
+
+        double score = scoreSolution(scenario, solution);
+        LOG.info(String.format("Initial solution score %f", score));
+
+        List<Course> courses = IterableUtils.toList(scenario.findAllCourses());
+        List<Person> people = IterableUtils.toList(scenario.findAllPeople());
+
+        for (int iteration = 0; iteration < iterations; iteration++) {
+
+            Solution prevSolution = solution;
+            solution = solution.copy();
+            double prevScore = score;
+
+            Course course = courses.get(random.nextInt(courses.size()));
+            Person person1 = people.get(random.nextInt(people.size()));
+            Person person2 = people.get(random.nextInt(people.size()));
+
+            if (!person1.isHost() && !person2.isHost() && !person1.equals(person2)) {
+                solution.swapPeopleOnCourse(course, person1, person2);
+                score = scoreSolution(scenario, solution);
+
+                if (score <= prevScore) {
+                    LOG.debug(String.format("Iteration %d solution score %f, worse than current score %f so reverting",
+                            iteration, score, prevScore));
+                    solution = prevSolution;
+                    score = prevScore;
+                } else {
+                    LOG.debug(String.format("Iteration %d solution score %f better than current score %f so keeping",
+                            iteration, score, prevScore));
+                }
+
+            } else {
+                LOG.debug(String.format("Skipping iteration %d as can't swap host or same person", iteration));
+            }
+        }
+
+        long endTime = System.nanoTime();
+        LOG.info("tweakAndRepeatStrategy generated {} solutions in {} ms with a best score of {}", iterations,
+                TimeUnit.NANOSECONDS.toMillis(endTime - startTime), score);
+
+        return new ImmutablePair<Solution, Double>(solution, score);
+    }
+
 }
