@@ -1,6 +1,6 @@
-# seatingplan
+# Seating Plan
 
-## The probem
+## The problem
 
 During the Coronavirus lockdown whilst working from home my company set up regular lunch get togethers so people could stay in touch. This involved several meetings on Google Meet with a meeting (room or table) being hosted by one person with other people moving around the tables for different courses.
 
@@ -24,17 +24,17 @@ The problem is to try and make sure people meet as many other people as possible
 
 As a starting point I went for counting how many each person met and then combined this with how many tables each person visited, each measure weighted equally.
 
-## Solution #1
+## Solution #1 - trial and error
 
 One way to attack the problem is to randomly allocate people to tables, measure the solution and then try again repeating and keeping the best solution. Then do this many 1000's of times. In other words make no attempt to come up with a good solution, just guess until one hopefully appears.
 
-## Solution #2
+## Solution #2 - tweak and repeat
 
 Another approach is to come up with a solution, it doesn't have to be a good solution, and then tweak the solution a little to see if it makes it better. We could generate a random solution and then swap people between tables at random, if it makes the score better then keep that solution and repeat from there otherwise drop back the the original and try swapping different people.
 
 I suspect this algorithm may have a tendency to get stuck in local minima - it finds a solution then if there is no better solution to be found by making a simple change but there are better solutions if a few changes are made. So, some scope for improvement.
 
-## Combined
+## Solution #2 - combined
 
 Finally we can take the two solutions and combine, use the first method to give us a good starting point then tweak using the second method. The second algorithm is so much better than the first that this has little benefit.
 
@@ -46,10 +46,10 @@ So, with 4 courses, 5 tables and 23 people the random try and try again solution
 
 The is a simple command line app and uses the picocli lib for parsing arguments
 
-To run with 4 courses, 5 tables, iterate the solution 10000 times using the swap strategy, set the random seed to 1 (so reandom but repeatable) and using a file to specify the list of people the command would be
+To run with 4 courses, 5 tables, iterate the solution 10000 times using the swap strategy, set the random seed to 1 (so random but repeatable) and using a file to specify the list of people the command would be
 
 `java -jar seatingplan-0.0.1-SNAPSHOT-jar-with-dependencies.jar -s 1 -c 4 -t 5 -i 10000 -st swap -pf people.txt`
 
 Alternatively there is a .bat file that make this a bit easier to run
 
-This require JDK11 (for no other reason that the code was written and compiled using JDK11).
+This requires JDK11 (for no other reason that the code was written and compiled using JDK11).
