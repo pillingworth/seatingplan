@@ -83,4 +83,4 @@ Solution score 0.921196
 | Uma          | Table 2      | Table 4      | Table 3      | Table 1      | 13           | 4            |
 | Yoko         | Table 5      | Table 1      | Table 3      | Table 4      | 14           | 4            |
 | Zac          | Table 4      | Table 5      | Table 3      | Table 2      | 13           | 4            |
-|--------------------------------------------------------------------------------------------------------|
+
