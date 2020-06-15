@@ -3,7 +3,6 @@ package co.uk.threeonefour.seatingplan;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -89,7 +88,7 @@ public class SeatingPlan implements Runnable {
 
         /* Solution strategy #2 */
         if (strategies.contains("swap")) {
-            solutionScore = tweakAndRepeatStrategy(scenario, null /* solutionScore.getLeft() */);
+            solutionScore = swapAndRepeatStrategy(scenario, null /* solutionScore.getLeft() */);
             /* print the solution found */
             if (solutionScore.getLeft() != null) {
                 printModel(scenario, solutionScore.getLeft(), solutionScore.getRight());
@@ -140,100 +139,83 @@ public class SeatingPlan implements Runnable {
 
     protected void printModel(Scenario scenario, Solution solution, double score) {
 
-        try (LoggingPrintWriter lpw = new LoggingPrintWriter()) {
+        try (PrintWriter pw = new PrintWriter(System.out)) {
 
-            lpw.println();
-            lpw.println(String.format("Solution score %f", score));
+            pw.println();
+            pw.println(String.format("Solution score %f", score));
 
             /* first the header rows */
             int colWidth = 12;
-            lpw.println("");
+            pw.println("");
             for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
 
-                lpw.print("| ");
+                pw.print("| ");
                 if (hdrRow == 0) {
-                    lpw.print(truncateAndPad("Name", colWidth));
+                    pw.print(truncateAndPad("Name", colWidth));
                 } else {
-                    lpw.print("-".repeat(colWidth));
+                    pw.print("-".repeat(colWidth));
                 }
-                lpw.print(" | ");
+                pw.print(" | ");
 
                 for (Iterator<Course> it = scenario.findAllCourses().iterator(); it.hasNext();) {
                     Course course = it.next();
                     if (hdrRow == 0) {
-                        lpw.print(truncateAndPad(course.getName(), colWidth));
+                        pw.print(truncateAndPad(course.getName(), colWidth));
                     } else {
-                        lpw.print("-".repeat(colWidth));
+                        pw.print("-".repeat(colWidth));
                     }
                     if (it.hasNext()) {
-                        lpw.print(" | ");
+                        pw.print(" | ");
                     }
                 }
 
-                lpw.print(" | ");
+                pw.print(" | ");
                 if (hdrRow == 0) {
-                    lpw.print(truncateAndPad("# People", colWidth));
+                    pw.print(truncateAndPad("# People", colWidth));
                 } else {
-                    lpw.print("-".repeat(colWidth));
+                    pw.print("-".repeat(colWidth));
                 }
 
-                lpw.print(" | ");
+                pw.print(" | ");
                 if (hdrRow == 0) {
-                    lpw.print(truncateAndPad("# Tables", colWidth));
+                    pw.print(truncateAndPad("# Tables", colWidth));
                 } else {
-                    lpw.print("-".repeat(colWidth));
+                    pw.print("-".repeat(colWidth));
                 }
 
-                lpw.println(" |");
+                pw.println(" |");
             }
 
             /* then the rows */
             for (Iterator<Person> pit = scenario.findAllPeople().iterator(); pit.hasNext();) {
                 Person person = pit.next();
-                lpw.print("| ");
-                lpw.print(truncateAndPad(person.getName(), colWidth));
-                lpw.print(" | ");
+                pw.print("| ");
+                pw.print(truncateAndPad(person.getName(), colWidth));
+                pw.print(" | ");
                 for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
                     Course course = cit.next();
                     // lpw.print(" ");
                     solution.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
-                        lpw.print(truncateAndPad(table.getName(), colWidth));
+                        pw.print(truncateAndPad(table.getName(), colWidth));
                     }, () -> {
-                        lpw.print("-".repeat(colWidth));
+                        pw.print("-".repeat(colWidth));
                     });
-                    lpw.print(" | ");
+                    pw.print(" | ");
                 }
                 var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
-                lpw.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
-                lpw.print(" | ");
+                pw.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
+                pw.print(" | ");
                 var tablesSatOn = solution.countAllDistinctTablesByPerson(person);
-                lpw.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
-                lpw.print(" |");
-                lpw.println();
+                pw.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
+                pw.print(" |");
+                pw.println();
             }
 
             /* and the footer */
-            lpw.print("|");
-            lpw.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
+            pw.print("|");
+            pw.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
 
-            lpw.println("|");
-        }
-    }
-
-    private static final class LoggingPrintWriter extends PrintWriter {
-        LoggingPrintWriter() {
-            super(new StringWriter());
-        }
-
-        public void println(String str) {
-            super.print(str);
-            println();
-        }
-
-        public void println() {
-            flush();
-            LOG.info(out.toString());
-            ((StringWriter) out).getBuffer().setLength(0);
+            pw.println("|");
         }
     }
 
@@ -279,7 +261,7 @@ public class SeatingPlan implements Runnable {
         }
 
         long endTime = System.nanoTime();
-        LOG.debug("Solution generated in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
+        LOG.trace("Solution generated in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
 
         return solution;
     }
@@ -341,7 +323,7 @@ public class SeatingPlan implements Runnable {
 
         long endTime = System.nanoTime();
 
-        LOG.debug("Solution scored in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
+        LOG.trace("Solution scored in {} us", TimeUnit.NANOSECONDS.toMicros(endTime - startTime));
 
         return solutionScore;
     }
@@ -357,15 +339,18 @@ public class SeatingPlan implements Runnable {
      */
     public Pair<Solution, Double> bestRandomGuessStrategy(Scenario scenario, Solution initialSolution) {
 
+        LOG.debug("Starting bestRandomGuessStrategy");
+
         long startTime = System.nanoTime();
 
         /* random but repeatable */
         var random = (seed == 0) ? new Random() : new Random(seed);
 
         Solution bestSolution = initialSolution;
-        double bestScore = (initialSolution == null) ? 0 : scoreSolution(scenario, initialSolution);
+        double initialScore = (initialSolution == null) ? 0 : scoreSolution(scenario, initialSolution);
+        double bestScore = initialScore;
 
-        LOG.info(String.format("Initial solution score %f", bestScore));
+        LOG.debug(String.format("Initial solution score %f", bestScore));
 
         for (int iteration = 0; iteration < iterations; iteration++) {
 
@@ -373,7 +358,7 @@ public class SeatingPlan implements Runnable {
 
             double score = scoreSolution(scenario, solution);
 
-            LOG.info(String.format("Iteration %d solution score %f", iteration, score));
+            LOG.debug(String.format("Iteration %d solution score %f", iteration, score));
 
             if (score > bestScore) {
                 bestScore = score;
@@ -382,8 +367,9 @@ public class SeatingPlan implements Runnable {
         }
 
         long endTime = System.nanoTime();
-        LOG.info("bestRandomGuessStrategy generated {} solutions in {} ms with a best score of {}", iterations,
-                TimeUnit.NANOSECONDS.toMillis(endTime - startTime), bestScore);
+        LOG.debug(
+                "bestRandomGuessStrategy generated {} solutions in {} ms from an initial score of {} producing a best score of {}",
+                iterations, TimeUnit.NANOSECONDS.toMillis(endTime - startTime), initialScore, bestScore);
 
         return new ImmutablePair<Solution, Double>(bestSolution, bestScore);
     }
@@ -397,7 +383,9 @@ public class SeatingPlan implements Runnable {
      *            a solution to start with to see if it can be improved
      * @return the best solution found or null if no valid solution found
      */
-    public Pair<Solution, Double> tweakAndRepeatStrategy(Scenario scenario, Solution initialSolution) {
+    public Pair<Solution, Double> swapAndRepeatStrategy(Scenario scenario, Solution initialSolution) {
+
+        LOG.debug("Starting swapAndRepeatStrategy");
 
         long startTime = System.nanoTime();
 
@@ -407,7 +395,6 @@ public class SeatingPlan implements Runnable {
         Solution solution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
 
         double score = scoreSolution(scenario, solution);
-        LOG.info(String.format("Initial solution score %f", score));
 
         List<Course> courses = IterableUtils.toList(scenario.findAllCourses());
         List<Person> people = IterableUtils.toList(scenario.findAllPeople());
@@ -442,7 +429,7 @@ public class SeatingPlan implements Runnable {
         }
 
         long endTime = System.nanoTime();
-        LOG.info("tweakAndRepeatStrategy generated {} solutions in {} ms with a best score of {}", iterations,
+        LOG.debug("swapAndRepeatStrategy generated {} solutions in {} ms with a best score of {}", iterations,
                 TimeUnit.NANOSECONDS.toMillis(endTime - startTime), score);
 
         return new ImmutablePair<Solution, Double>(solution, score);
