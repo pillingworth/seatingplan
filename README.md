@@ -18,9 +18,9 @@ To model the problem a set of Java classes were created to represent the tables,
 
 The problem can have many solutions, some good some bad and some mediocre. These are modelled as a *Solution* class.
 
-In order to see how good the solution is we need some way of measuring it. There are many criteria that can be used for this but what it all boils down to is "is this solution better than another solution". We simply need a simple numeric score.
+In order to see how good the solution is we need some way of measuring it. There are many criteria that can be used for this but what it all boils down to is "is this solution better than another solution". We just need a simple numeric score.
 
-The problem is to try and make sure people meet as many other people as possible. We can simply count how many different people each person met and then total these. The number of tables a person sets at is also important. We want people to move around the tables and hosts. 
+The problem is to try and make sure people meet as many other people as possible. We can do this by counting how many different people each person meets and then total all these counts. The number of tables a person sits at is also important - we want people to move around the tables and hosts. So we can count those too.
 
 As a starting point I went for counting how many each person met and then combined this with how many tables each person visited, each measure weighted equally.
 
@@ -28,7 +28,7 @@ As a starting point I went for counting how many each person met and then combin
 
 One way to attack the problem is to randomly allocate people to tables, measure the solution and then try again repeating and keeping the best solution. Then do this many 1000's of times. In other words make no attempt to come up with a good solution, just guess until one hopefully appears.
 
-## Solution #2 - tweak and repeat
+## Solution #2 - swap people between tables
 
 Another approach is to come up with a solution, it doesn't have to be a good solution, and then tweak the solution a little to see if it makes it better. We could generate a random solution and then swap people between tables at random, if it makes the score better then keep that solution and repeat from there otherwise drop back the the original and try swapping different people.
 
@@ -40,7 +40,7 @@ Finally we can take the two solutions and combine, use the first method to give 
 
 ## Results
 
-So, with 4 courses, 5 tables and 23 people the random try and try again solution typically came up with solutions between 0.65 and 0.85 but often required 100000 runs to get the higher values. The tweak and repeat approach averaged 0.92 with far fewer iterations. On my laptop both only take a few seconds. 
+So, with 4 courses, 5 tables and 23 people the random try and try again solution typically came up with solutions between 0.65 and 0.85 but often required 100000 runs to get the higher values. The swap and repeat approach averaged 0.90+ with far fewer iterations. On my laptop both only take a few seconds.
 
 ## Running the app
 
