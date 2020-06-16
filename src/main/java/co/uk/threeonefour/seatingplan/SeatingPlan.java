@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
@@ -123,13 +125,13 @@ public class SeatingPlan implements Runnable {
         }
 
         /* create a list of Courses */
-        for (var i = 0; i < numberOfCourses; i++) {
+        for (int i = 0; i < numberOfCourses; i++) {
             int id = i + 1;
             scenario.addCourse(new Course(id, "Course " + id));
         }
 
         /* create a list of Tables */
-        for (var i = 0; i < numberOfTables; i++) {
+        for (int i = 0; i < numberOfTables; i++) {
             int id = i + 1;
             scenario.addTable(new Table(id, "Table " + id));
         }
@@ -153,7 +155,7 @@ public class SeatingPlan implements Runnable {
                 if (hdrRow == 0) {
                     pw.print(truncateAndPad("Name", colWidth));
                 } else {
-                    pw.print("-".repeat(colWidth));
+                    pw.print(StringUtils.repeat('-', colWidth));
                 }
                 pw.print(" | ");
 
@@ -162,7 +164,7 @@ public class SeatingPlan implements Runnable {
                     if (hdrRow == 0) {
                         pw.print(truncateAndPad(course.getName(), colWidth));
                     } else {
-                        pw.print("-".repeat(colWidth));
+                        pw.print(StringUtils.repeat('-', colWidth));
                     }
                     if (it.hasNext()) {
                         pw.print(" | ");
@@ -173,14 +175,14 @@ public class SeatingPlan implements Runnable {
                 if (hdrRow == 0) {
                     pw.print(truncateAndPad("# People", colWidth));
                 } else {
-                    pw.print("-".repeat(colWidth));
+                    pw.print(StringUtils.repeat('-', colWidth));
                 }
 
                 pw.print(" | ");
                 if (hdrRow == 0) {
                     pw.print(truncateAndPad("# Tables", colWidth));
                 } else {
-                    pw.print("-".repeat(colWidth));
+                    pw.print(StringUtils.repeat('-', colWidth));
                 }
 
                 pw.println(" |");
@@ -195,17 +197,18 @@ public class SeatingPlan implements Runnable {
                 for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
                     Course course = cit.next();
                     // lpw.print(" ");
-                    solution.findTableByPersonAndCourse(person, course).ifPresentOrElse(table -> {
-                        pw.print(truncateAndPad(table.getName(), colWidth));
-                    }, () -> {
-                        pw.print("-".repeat(colWidth));
-                    });
+                    Optional<Table> table = solution.findTableByPersonAndCourse(person, course);
+                    if (table.isPresent()) {
+                        pw.print(truncateAndPad(table.get().getName(), colWidth));
+                    } else  {
+                        pw.print(StringUtils.repeat('-', colWidth));
+                    }
                     pw.print(" | ");
                 }
-                var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
+                long peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
                 pw.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
                 pw.print(" | ");
-                var tablesSatOn = solution.countAllDistinctTablesByPerson(person);
+                long tablesSatOn = solution.countAllDistinctTablesByPerson(person);
                 pw.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
                 pw.print(" |");
                 pw.println();
@@ -213,7 +216,7 @@ public class SeatingPlan implements Runnable {
 
             /* and the footer */
             pw.print("|");
-            pw.print("-".repeat((colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
+            pw.print(StringUtils.repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
 
             pw.println("|");
         }
@@ -236,22 +239,22 @@ public class SeatingPlan implements Runnable {
 
         Solution solution = new TripleListSolution();
 
-        var tables = new ArrayList<>(IterableUtils.toList(scenario.findAllTables()));
-        for (var course : scenario.findAllCourses()) {
+        List<Table> tables = new ArrayList<>(IterableUtils.toList(scenario.findAllTables()));
+        for (Course course : scenario.findAllCourses()) {
 
             /* add a host to each table */
             int tableNumber = 0;
-            for (var host : scenario.findAllPeopleByHost(true)) {
+            for (Person host : scenario.findAllPeopleByHost(true)) {
                 solution.addSeating(host, course, tables.get(tableNumber++));
             }
 
             /* shuffle the remaining people */
-            var shuffledNonHosts = new ArrayList<>(IterableUtils.toList(scenario.findAllPeopleByHost(false)));
+            List<Person> shuffledNonHosts = new ArrayList<>(IterableUtils.toList(scenario.findAllPeopleByHost(false)));
             Collections.shuffle(shuffledNonHosts, random);
 
             /* and then add them to the tables one at a time */
             tableNumber = 0;
-            for (var person : shuffledNonHosts) {
+            for (Person person : shuffledNonHosts) {
                 solution.addSeating(person, course, tables.get(tableNumber));
                 tableNumber++;
                 if (tableNumber >= numberOfTables) {
@@ -273,8 +276,8 @@ public class SeatingPlan implements Runnable {
         boolean valid = true;
 
         /* make sure one and only one host per table for each course */
-        for (var tables : scenario.findAllTables()) {
-            for (var courses : scenario.findAllCourses()) {
+        for (Table tables : scenario.findAllTables()) {
+            for (Course courses : scenario.findAllCourses()) {
                 long hosts = solution.countAllPeopleByHostAndCourseAndTable(true, courses, tables);
                 if (hosts != 1) {
                     valid = false;
@@ -284,8 +287,8 @@ public class SeatingPlan implements Runnable {
         }
 
         /* make sure host only sits on one table */
-        for (var host : scenario.findAllPeopleByHost(true)) {
-            var numTables = solution.countAllDistinctTablesByPerson(host);
+        for (Person host : scenario.findAllPeopleByHost(true)) {
+            long numTables = solution.countAllDistinctTablesByPerson(host);
             if (numTables != 1) {
                 valid = false;
                 break;
@@ -298,17 +301,17 @@ public class SeatingPlan implements Runnable {
         long mostNumberOfDifferentTablesAPersonCanSitAt = Math.min(numberOfTables, numberOfCourses);
 
         /* how many different people does each person get to sit with */
-        var personToDifferentPeopleScore = new HashMap<Person, Double>();
-        for (var person : scenario.findAllPeople()) {
-            var peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
+        Map<Person, Double> personToDifferentPeopleScore = new HashMap<>();
+        for (Person person : scenario.findAllPeople()) {
+            long peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
             double score = peopleMet / (double) mostPeopleAPersonCanMeet;
             personToDifferentPeopleScore.put(person, score);
         }
 
         /* how many different tables does each person get to sit on */
-        var personToDifferentTableScore = new HashMap<Person, Double>();
-        for (var person : scenario.findAllPeopleByHost(false)) {
-            var numTables = solution.countAllDistinctTablesByPerson(person);
+        Map<Person, Double> personToDifferentTableScore = new HashMap<>();
+        for (Person person : scenario.findAllPeopleByHost(false)) {
+            long numTables = solution.countAllDistinctTablesByPerson(person);
             double score = numTables / (double) mostNumberOfDifferentTablesAPersonCanSitAt;
             personToDifferentTableScore.put(person, score);
         }
@@ -344,7 +347,7 @@ public class SeatingPlan implements Runnable {
         long startTime = System.nanoTime();
 
         /* random but repeatable */
-        var random = (seed == 0) ? new Random() : new Random(seed);
+        Random random = (seed == 0) ? new Random() : new Random(seed);
 
         Solution bestSolution = initialSolution;
         double initialScore = (initialSolution == null) ? 0 : scoreSolution(scenario, initialSolution);
@@ -390,7 +393,7 @@ public class SeatingPlan implements Runnable {
         long startTime = System.nanoTime();
 
         /* random but repeatable */
-        var random = (seed == 0) ? new Random() : new Random(seed);
+        Random random = (seed == 0) ? new Random() : new Random(seed);
 
         Solution solution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
 

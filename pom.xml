@@ -11,9 +11,9 @@
 	<description>Company meeting seating plan generator</description>
 
 	<properties>
-		<java.version>11</java.version>
-		<project.source.version>11</project.source.version>
-		<project.target.version>11</project.target.version>
+		<java.version>8</java.version>
+		<project.source.version>8</project.source.version>
+		<project.target.version>8</project.target.version>
 		<project.encoding>UTF-8</project.encoding>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

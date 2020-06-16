@@ -1,6 +1,7 @@
 package co.uk.threeonefour.seatingplan.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -65,7 +66,7 @@ public class SimpleScenario implements Scenario {
 
     @Override
     public Iterable<Person> findAllPeopleByHost(boolean host) {
-        return people.stream().filter(p -> p.isHost() == host).collect(Collectors.toUnmodifiableList());
+        return Collections.unmodifiableList(people.stream().filter(p -> p.isHost() == host).collect(Collectors.toList()));
     }
 
     @Override
