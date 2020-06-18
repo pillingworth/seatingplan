@@ -43,20 +43,16 @@ public class SeatingPlan implements Runnable {
             "--courses" }, description = "Number of courses.", paramLabel = "<courses>", defaultValue = "4")
     private int numberOfCourses;
 
-    @Option(names = { "-t",
-            "--tables" }, description = "Number of tables.", paramLabel = "<tables>", defaultValue = "5")
-    private int numberOfTables;
-
     @Option(names = { "-s",
             "--seed" }, description = "Seed for random number generation.", paramLabel = "<seed>", defaultValue = "0")
     private long seed;
 
     @Option(names = { "-pf",
-            "--peoplefile" }, description = "File of people to include. One person per line. Use # to 'comment' someone out.", paramLabel = "<peoplefile>", required = true)
+            "--peoplefile" }, description = "File of people to include. One person per line. Use # to 'comment' someone out. Use ', host' to indicate they are a host.", paramLabel = "<peoplefile>", required = true)
     private Path peopleFilePath;
 
     @Option(names = { "-i",
-            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "1000")
+            "--iterations" }, description = "How many iterations should be tried.", paramLabel = "<iterations>", defaultValue = "20000")
     private int iterations;
 
     @Option(names = { "-st",
@@ -75,11 +71,14 @@ public class SeatingPlan implements Runnable {
             return;
         }
 
+        /* random but repeatable */
+        Random random = (seed == 0) ? new Random() : new Random(seed);
+
         Pair<Solution, Double> solutionScore;
 
         /* Solution strategy #1 */
         if (strategies.contains("random")) {
-            solutionScore = bestRandomGuessStrategy(scenario, null);
+            solutionScore = bestRandomGuessStrategy(scenario, null, random);
             /* print the solution found */
             if (solutionScore.getLeft() != null) {
                 printModel(scenario, solutionScore.getLeft(), solutionScore.getRight());
@@ -90,7 +89,7 @@ public class SeatingPlan implements Runnable {
 
         /* Solution strategy #2 */
         if (strategies.contains("swap")) {
-            solutionScore = swapAndRepeatStrategy(scenario, null /* solutionScore.getLeft() */);
+            solutionScore = swapAndRepeatStrategy(scenario, null, random);
             /* print the solution found */
             if (solutionScore.getLeft() != null) {
                 printModel(scenario, solutionScore.getLeft(), solutionScore.getRight());
@@ -110,6 +109,7 @@ public class SeatingPlan implements Runnable {
                     "Unable to open " + peopleFilePath + " as it either could not be found or is not a file.");
         }
 
+        int numberOfHosts = 0;
         try (Scanner scanner = new Scanner(peopleFilePath)) {
             int i = 0;
             while (scanner.hasNextLine()) {
@@ -120,6 +120,9 @@ public class SeatingPlan implements Runnable {
                     boolean host = "host".equalsIgnoreCase(StringUtils.substringAfterLast(line, ",").trim());
                     scenario.addPerson(new Person(id, name, host));
                     i++;
+                    if (host) {
+                        numberOfHosts++;
+                    }
                 }
             }
         }
@@ -131,7 +134,7 @@ public class SeatingPlan implements Runnable {
         }
 
         /* create a list of Tables */
-        for (int i = 0; i < numberOfTables; i++) {
+        for (int i = 0; i < numberOfHosts; i++) {
             int id = i + 1;
             scenario.addTable(new Table(id, "Table " + id));
         }
@@ -199,8 +202,13 @@ public class SeatingPlan implements Runnable {
                     // lpw.print(" ");
                     Optional<Table> table = solution.findTableByPersonAndCourse(person, course);
                     if (table.isPresent()) {
-                        pw.print(truncateAndPad(table.get().getName(), colWidth));
-                    } else  {
+                        Optional<Person> host = solution.findPersonByTableAndHost(table.get(), true);
+                        if (host.isPresent()) {
+                            pw.print(truncateAndPad(host.get().getName(), colWidth));
+                        } else {
+                            pw.print(truncateAndPad(table.get().getName(), colWidth));
+                        }
+                    } else {
                         pw.print(StringUtils.repeat('-', colWidth));
                     }
                     pw.print(" | ");
@@ -253,6 +261,7 @@ public class SeatingPlan implements Runnable {
             Collections.shuffle(shuffledNonHosts, random);
 
             /* and then add them to the tables one at a time */
+            long numberOfTables = scenario.countAllTables();
             tableNumber = 0;
             for (Person person : shuffledNonHosts) {
                 solution.addSeating(person, course, tables.get(tableNumber));
@@ -295,6 +304,7 @@ public class SeatingPlan implements Runnable {
             }
         }
 
+        long numberOfTables = scenario.countAllTables();
         long numberOfPeople = scenario.countAllPeople();
         long maxPeoplePerTable = (int) Math.ceil((double) numberOfPeople / numberOfTables);
         long mostPeopleAPersonCanMeet = numberOfCourses * (maxPeoplePerTable - 1);
@@ -338,16 +348,15 @@ public class SeatingPlan implements Runnable {
      *            the scenario to solve
      * @param initialSolution
      *            an initial solution to start with
+     * @param random
+     *            for repeatable random numbers
      * @return the best solution found or null if no valid solution found
      */
-    public Pair<Solution, Double> bestRandomGuessStrategy(Scenario scenario, Solution initialSolution) {
+    public Pair<Solution, Double> bestRandomGuessStrategy(Scenario scenario, Solution initialSolution, Random random) {
 
         LOG.debug("Starting bestRandomGuessStrategy");
 
         long startTime = System.nanoTime();
-
-        /* random but repeatable */
-        Random random = (seed == 0) ? new Random() : new Random(seed);
 
         Solution bestSolution = initialSolution;
         double initialScore = (initialSolution == null) ? 0 : scoreSolution(scenario, initialSolution);
@@ -384,16 +393,15 @@ public class SeatingPlan implements Runnable {
      *            the scenario to solve
      * @param initialSolution
      *            a solution to start with to see if it can be improved
+     * @param random
+     *            for repeatable random numbers
      * @return the best solution found or null if no valid solution found
      */
-    public Pair<Solution, Double> swapAndRepeatStrategy(Scenario scenario, Solution initialSolution) {
+    public Pair<Solution, Double> swapAndRepeatStrategy(Scenario scenario, Solution initialSolution, Random random) {
 
         LOG.debug("Starting swapAndRepeatStrategy");
 
         long startTime = System.nanoTime();
-
-        /* random but repeatable */
-        Random random = (seed == 0) ? new Random() : new Random(seed);
 
         Solution solution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
 
@@ -438,4 +446,47 @@ public class SeatingPlan implements Runnable {
         return new ImmutablePair<Solution, Double>(solution, score);
     }
 
+    /**
+     * Repeatedly call the swap and repeat strategy and choose the best
+     * 
+     * @param scenario
+     *            the scenario to solve
+     * @param initialSolution
+     *            a solution to start with to see if it can be improved
+     * @param random
+     *            for repeatable random numbers
+     * @return the best solution found or null if no valid solution found
+     */
+    public Pair<Solution, Double> bestSwapAndRepeatStrategy(Scenario scenario, Solution initialSolution,
+            Random random) {
+
+        LOG.debug("Starting bestSwapAndRepeatStrategy");
+
+        long startTime = System.nanoTime();
+
+        Solution bestSolution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
+        double initialScore = scoreSolution(scenario, bestSolution);
+        double bestScore = initialScore;
+
+        LOG.debug(String.format("Initial solution score %f", bestScore));
+
+        for (int iteration = 0; iteration < 10; iteration++) {
+
+            Pair<Solution, Double> solutionScore = swapAndRepeatStrategy(scenario, null, random);
+
+            LOG.debug(String.format("Iteration %d solution score %f", iteration, solutionScore.getRight()));
+
+            if (solutionScore.getRight() > bestScore) {
+                bestScore = solutionScore.getRight();
+                bestSolution = solutionScore.getLeft();
+            }
+        }
+
+        long endTime = System.nanoTime();
+        LOG.debug(
+                "bestSwapAndRepeatStrategy generated {} solutions in {} ms from an initial score of {} producing a best score of {}",
+                iterations, TimeUnit.NANOSECONDS.toMillis(endTime - startTime), initialScore, bestScore);
+
+        return new ImmutablePair<Solution, Double>(bestSolution, bestScore);
+    }
 }

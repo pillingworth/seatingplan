@@ -103,4 +103,10 @@ public class TripleListSolution implements Solution {
             triples.add(ImmutableTriple.of(triple1.getLeft(), triple2.getMiddle(), triple2.getRight()));
         }
     }
+
+    @Override
+    public Optional<Person> findPersonByTableAndHost(Table table, boolean host) {
+        return triples.stream().filter(triple -> triple.getRight().equals(table) && triple.getLeft().isHost() == host)
+                .map(triple -> triple.getLeft()).findAny();
+    }
 }

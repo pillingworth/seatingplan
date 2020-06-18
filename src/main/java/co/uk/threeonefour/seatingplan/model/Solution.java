@@ -23,4 +23,6 @@ public interface Solution {
     Iterable<Table> findAllDistinctTablesByPerson(Person person);
     
     void swapPeopleOnCourse(Course course, Person person1, Person person2);
+
+    Optional<Person> findPersonByTableAndHost(Table table, boolean host);
 }

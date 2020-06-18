@@ -34,7 +34,7 @@ Another approach is to come up with a solution, it doesn't have to be a good sol
 
 I suspect this algorithm may have a tendency to get stuck in local minima - it finds a solution then if there is no better solution to be found by making a simple change but there are better solutions if a few changes are made. So, some scope for improvement.
 
-## Solution #2 - combined
+## Solution #3 - combined
 
 Finally we can take the two solutions and combine, use the first method to give us a good starting point then tweak using the second method. The second algorithm is so much better than the first that this has little benefit.
 
@@ -48,7 +48,7 @@ The is a simple command line app and uses the picocli lib for parsing arguments
 
 To run with 4 courses, 5 tables, iterate the solution 10000 times using the swap strategy, set the random seed to 1 (so random but repeatable) and using a file to specify the list of people the command would be
 
-`java -jar seatingplan-0.0.1-SNAPSHOT-jar-with-dependencies.jar -s 1 -c 4 -t 5 -i 10000 -st swap -pf people.txt`
+`java -jar seatingplan-0.0.1-SNAPSHOT-jar-with-dependencies.jar -s 1 -c 4 -i 10000 -st swap -pf people.txt`
 
 Alternatively there is a .bat file that make this a bit easier to run
 
