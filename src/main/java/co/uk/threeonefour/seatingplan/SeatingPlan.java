@@ -59,6 +59,14 @@ public class SeatingPlan implements Runnable {
             "--strategy" }, description = "Which strategies to use. Options are random|walk", paramLabel = "<strategies>", defaultValue = "swap")
     private List<String> strategies;
 
+    @Option(names = { "-dpw",
+            "--differentpeopleweighting" }, description = "Weighting to be applied to the number of different people score. Weightings should ideally add up to 1.0.", paramLabel = "<differentpeopleweighting>", defaultValue = "0.4")
+    private double differentPeopleWeighting;
+
+    @Option(names = { "-dtw",
+            "--differenttablesweighting" }, description = "Weighting to be applied to the number of different tables score. Weightings should ideally add up to 1.0.", paramLabel = "<differenttablesweighting>", defaultValue = "0.6")
+    private double differentTablesWeighting;
+
     @Override
     public void run() {
 
@@ -227,6 +235,18 @@ public class SeatingPlan implements Runnable {
             pw.print(StringUtils.repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
 
             pw.println("|");
+            pw.println();
+
+            /* and print all hosts and people they sit with */
+            for (Person host : scenario.findAllPeopleByHost(true)) {
+                pw.print("* ");
+                pw.println(host.getName());
+                for (Person person : solution.findAllDistinctPeopleMetByPerson(host)) {
+                    pw.print("  * ");
+                    pw.println(person.getName());
+                }
+            }
+            pw.println();
         }
     }
 
@@ -331,7 +351,9 @@ public class SeatingPlan implements Runnable {
         double avgPersonToDifferentTableScore = personToDifferentTableScore.values().stream()
                 .collect(Collectors.averagingDouble(v -> v));
         /* combine scores with weightings */
-        double solutionScore = valid ? avgPersonToDifferentPeopleScore * 0.5D + avgPersonToDifferentTableScore * 0.5D
+        double solutionScore = valid
+                ? avgPersonToDifferentPeopleScore * differentPeopleWeighting
+                        + avgPersonToDifferentTableScore * differentTablesWeighting
                 : 0.0;
 
         long endTime = System.nanoTime();
@@ -421,17 +443,46 @@ public class SeatingPlan implements Runnable {
             Person person2 = people.get(random.nextInt(people.size()));
 
             if (!person1.isHost() && !person2.isHost() && !person1.equals(person2)) {
-                solution.swapPeopleOnCourse(course, person1, person2);
-                score = scoreSolution(scenario, solution);
 
-                if (score <= prevScore) {
-                    LOG.debug(String.format("Iteration %d solution score %f, worse than current score %f so reverting",
-                            iteration, score, prevScore));
-                    solution = prevSolution;
-                    score = prevScore;
+                Table table1 = solution.findTableByPersonAndCourse(person1, course).get();
+                Table table2 = solution.findTableByPersonAndCourse(person2, course).get();
+                boolean canSwap = !table1.equals(table2);
+
+                if (canSwap) {
+
+                    /* decide is we are going to swap two people or just move a single person */
+                    long peopleOnTable1 = solution.countAllPeopleByCourseAndTable(course, table1);
+                    long peopleOnTable2 = solution.countAllPeopleByCourseAndTable(course, table2);
+
+                    boolean canMove = (peopleOnTable1 != peopleOnTable2);
+
+                    if (canMove && random.nextBoolean()) {
+                        LOG.debug("moving...");
+                        if (peopleOnTable1 > peopleOnTable2) {
+                            solution.movePersonOnCourseToTable(person1, course, table2);
+                        } else {
+                            solution.movePersonOnCourseToTable(person2, course, table1);
+                        }
+                    } else {
+                        LOG.debug("swapping...");
+                        solution.swapPeopleOnCourse(course, person1, person2);
+                    }
+
+                    score = scoreSolution(scenario, solution);
+
+                    if (score <= prevScore) {
+                        LOG.debug(String.format(
+                                "Iteration %d solution score %f, worse than current score %f so reverting", iteration,
+                                score, prevScore));
+                        solution = prevSolution;
+                        score = prevScore;
+                    } else {
+                        LOG.debug(
+                                String.format("Iteration %d solution score %f better than current score %f so keeping",
+                                        iteration, score, prevScore));
+                    }
                 } else {
-                    LOG.debug(String.format("Iteration %d solution score %f better than current score %f so keeping",
-                            iteration, score, prevScore));
+                    LOG.debug(String.format("Skipping iteration %d as can't swap person to same table", iteration));
                 }
 
             } else {
@@ -444,49 +495,5 @@ public class SeatingPlan implements Runnable {
                 TimeUnit.NANOSECONDS.toMillis(endTime - startTime), score);
 
         return new ImmutablePair<Solution, Double>(solution, score);
-    }
-
-    /**
-     * Repeatedly call the swap and repeat strategy and choose the best
-     * 
-     * @param scenario
-     *            the scenario to solve
-     * @param initialSolution
-     *            a solution to start with to see if it can be improved
-     * @param random
-     *            for repeatable random numbers
-     * @return the best solution found or null if no valid solution found
-     */
-    public Pair<Solution, Double> bestSwapAndRepeatStrategy(Scenario scenario, Solution initialSolution,
-            Random random) {
-
-        LOG.debug("Starting bestSwapAndRepeatStrategy");
-
-        long startTime = System.nanoTime();
-
-        Solution bestSolution = (initialSolution == null) ? createSolution(scenario, random) : initialSolution;
-        double initialScore = scoreSolution(scenario, bestSolution);
-        double bestScore = initialScore;
-
-        LOG.debug(String.format("Initial solution score %f", bestScore));
-
-        for (int iteration = 0; iteration < 10; iteration++) {
-
-            Pair<Solution, Double> solutionScore = swapAndRepeatStrategy(scenario, null, random);
-
-            LOG.debug(String.format("Iteration %d solution score %f", iteration, solutionScore.getRight()));
-
-            if (solutionScore.getRight() > bestScore) {
-                bestScore = solutionScore.getRight();
-                bestSolution = solutionScore.getLeft();
-            }
-        }
-
-        long endTime = System.nanoTime();
-        LOG.debug(
-                "bestSwapAndRepeatStrategy generated {} solutions in {} ms from an initial score of {} producing a best score of {}",
-                iterations, TimeUnit.NANOSECONDS.toMillis(endTime - startTime), initialScore, bestScore);
-
-        return new ImmutablePair<Solution, Double>(bestSolution, bestScore);
     }
 }

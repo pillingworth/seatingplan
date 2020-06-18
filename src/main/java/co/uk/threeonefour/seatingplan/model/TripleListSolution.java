@@ -22,12 +22,12 @@ public class TripleListSolution implements Solution {
     private TripleListSolution(TripleListSolution orig) {
         this.triples = new ArrayList<>(orig.triples);
     }
-    
+
     @Override
     public Solution copy() {
         return new TripleListSolution(this);
     }
-    
+
     @Override
     public void addSeating(Person person, Course course, Table table) {
         triples.add(ImmutableTriple.of(person, course, table));
@@ -80,10 +80,22 @@ public class TripleListSolution implements Solution {
     }
 
     @Override
+    public long countAllPeopleByCourseAndTable(Course course, Table table) {
+        return triples.stream().filter(triple -> triple.getMiddle().equals(course) && triple.getRight().equals(table))
+                .count();
+    }
+
+    @Override
     public Iterable<Table> findAllDistinctTablesByPerson(Person person) {
         Set<Table> tables = triples.stream().filter(triple -> triple.getLeft().equals(person))
                 .map(triple -> triple.getRight()).collect(Collectors.toSet());
         return tables;
+    }
+
+    @Override
+    public Optional<Person> findPersonByTableAndHost(Table table, boolean host) {
+        return triples.stream().filter(triple -> triple.getRight().equals(table) && triple.getLeft().isHost() == host)
+                .map(triple -> triple.getLeft()).findAny();
     }
 
     @Override
@@ -105,8 +117,13 @@ public class TripleListSolution implements Solution {
     }
 
     @Override
-    public Optional<Person> findPersonByTableAndHost(Table table, boolean host) {
-        return triples.stream().filter(triple -> triple.getRight().equals(table) && triple.getLeft().isHost() == host)
-                .map(triple -> triple.getLeft()).findAny();
+    public void movePersonOnCourseToTable(Person person, Course course, Table table) {
+        triples.stream().filter(triple -> triple.getLeft().equals(person) && triple.getMiddle().equals(course))
+                .findFirst().ifPresent(triple -> {
+                    /* remove old entry */
+                    triples.remove(triple);
+                    /* add new entry with table swapped */
+                    triples.add(ImmutableTriple.of(triple.getLeft(), triple.getMiddle(), table));
+                });
     }
 }

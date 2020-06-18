@@ -20,9 +20,13 @@ public interface Solution {
     
     Iterable<Person> findAllPeopleByCourseAndTable(Course course, Table table);
 
+    Optional<Person> findPersonByTableAndHost(Table table, boolean host);
+    
+    long countAllPeopleByCourseAndTable(Course course, Table table);
+
     Iterable<Table> findAllDistinctTablesByPerson(Person person);
     
     void swapPeopleOnCourse(Course course, Person person1, Person person2);
 
-    Optional<Person> findPersonByTableAndHost(Table table, boolean host);
+    void movePersonOnCourseToTable(Person person, Course course, Table table);
 }
