@@ -56,7 +56,7 @@ public class SeatingPlan implements Runnable {
     private int iterations;
 
     @Option(names = { "-st",
-            "--strategy" }, description = "Which strategies to use. Options are random|walk", paramLabel = "<strategies>", defaultValue = "swap")
+            "--strategy" }, description = "Which strategies to use. Options are random|swap", paramLabel = "<strategies>", defaultValue = "swap")
     private List<String> strategies;
 
     @Option(names = { "-dpw",
