@@ -158,24 +158,25 @@ public class SeatingPlan implements Runnable {
             pw.println(String.format("Solution score %f", score));
 
             /* first the header rows */
-            int colWidth = 12;
+            int firstColWidth = 20;
+            int otherColWidth = 12;
             pw.println("");
             for (int hdrRow = 0; hdrRow < 2; hdrRow++) {
 
                 pw.print("| ");
                 if (hdrRow == 0) {
-                    pw.print(truncateAndPad("Name", colWidth));
+                    pw.print(truncateAndPad("Name", firstColWidth));
                 } else {
-                    pw.print(StringUtils.repeat('-', colWidth));
+                    pw.print(StringUtils.repeat('-', firstColWidth));
                 }
                 pw.print(" | ");
 
                 for (Iterator<Course> it = scenario.findAllCourses().iterator(); it.hasNext();) {
                     Course course = it.next();
                     if (hdrRow == 0) {
-                        pw.print(truncateAndPad(course.getName(), colWidth));
+                        pw.print(truncateAndPad(course.getName(), otherColWidth));
                     } else {
-                        pw.print(StringUtils.repeat('-', colWidth));
+                        pw.print(StringUtils.repeat('-', otherColWidth));
                     }
                     if (it.hasNext()) {
                         pw.print(" | ");
@@ -184,16 +185,16 @@ public class SeatingPlan implements Runnable {
 
                 pw.print(" | ");
                 if (hdrRow == 0) {
-                    pw.print(truncateAndPad("# People", colWidth));
+                    pw.print(truncateAndPad("# People", otherColWidth));
                 } else {
-                    pw.print(StringUtils.repeat('-', colWidth));
+                    pw.print(StringUtils.repeat('-', otherColWidth));
                 }
 
                 pw.print(" | ");
                 if (hdrRow == 0) {
-                    pw.print(truncateAndPad("# Tables", colWidth));
+                    pw.print(truncateAndPad("# Tables", otherColWidth));
                 } else {
-                    pw.print(StringUtils.repeat('-', colWidth));
+                    pw.print(StringUtils.repeat('-', otherColWidth));
                 }
 
                 pw.println(" |");
@@ -203,7 +204,14 @@ public class SeatingPlan implements Runnable {
             for (Iterator<Person> pit = scenario.findAllPeople().iterator(); pit.hasNext();) {
                 Person person = pit.next();
                 pw.print("| ");
-                pw.print(truncateAndPad(person.getName(), colWidth));
+                if (person.isHost()) {
+                    pw.print("**");
+                    pw.print("(h) ");
+                    pw.print(truncateAndPad(person.getName(), firstColWidth - 8));
+                    pw.print("**");
+                } else {
+                    pw.print(truncateAndPad(person.getName(), firstColWidth));
+                }
                 pw.print(" | ");
                 for (Iterator<Course> cit = scenario.findAllCourses().iterator(); cit.hasNext();) {
                     Course course = cit.next();
@@ -212,29 +220,25 @@ public class SeatingPlan implements Runnable {
                     if (table.isPresent()) {
                         Optional<Person> host = solution.findPersonByTableAndHost(table.get(), true);
                         if (host.isPresent()) {
-                            pw.print(truncateAndPad(host.get().getName(), colWidth));
+                            pw.print(truncateAndPad(host.get().getName(), otherColWidth));
                         } else {
-                            pw.print(truncateAndPad(table.get().getName(), colWidth));
+                            pw.print(truncateAndPad(table.get().getName(), otherColWidth));
                         }
                     } else {
-                        pw.print(StringUtils.repeat('-', colWidth));
+                        pw.print(StringUtils.repeat('-', otherColWidth));
                     }
                     pw.print(" | ");
                 }
                 long peopleMet = solution.countAllDistinctPeopleMetByPerson(person);
-                pw.print(truncateAndPad(String.valueOf(peopleMet), colWidth));
+                pw.print(truncateAndPad(String.valueOf(peopleMet), otherColWidth));
                 pw.print(" | ");
                 long tablesSatOn = solution.countAllDistinctTablesByPerson(person);
-                pw.print(truncateAndPad(String.valueOf(tablesSatOn), colWidth));
+                pw.print(truncateAndPad(String.valueOf(tablesSatOn), otherColWidth));
                 pw.print(" |");
                 pw.println();
             }
 
             /* and the footer */
-            pw.print("|");
-            pw.print(StringUtils.repeat('-', (colWidth + 2) + (numberOfCourses + 2) * (colWidth + 3)));
-
-            pw.println("|");
             pw.println();
 
             /* and print all hosts and people they sit with */

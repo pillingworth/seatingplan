@@ -46,41 +46,40 @@ So, with 4 courses, 5 tables and 23 people the random try and try again solution
 
 The is a simple command line app and uses the picocli lib for parsing arguments
 
-To run with 4 courses, 5 tables, iterate the solution 10000 times using the swap strategy, set the random seed to 1 (so random but repeatable) and using a file to specify the list of people the command would be
+To run with 4 courses, iterate the solution 10000 times, set the "maximize mixing people weighting" to 0.4 , set the "maximise number of tables sat at weighting" to 0.6, selecting the "swap" strategy, set the random seed to 1 (so random but repeatable) and using a file to specify the list of people the command would be
 
-`java -jar seatingplan-0.0.1-SNAPSHOT-jar-with-dependencies.jar -s 1 -c 4 -i 10000 -st swap -pf people.txt`
+```
+java -jar seatingplan-0.0.1.jar -s 1 -c 4 -i 10000 -dpw 0.4 -dtw 0.6 -st swap -pf people.txt
+```
 
-Alternatively there is a .bat file that make this a bit easier to run
-
-This requires JDK11 (for no other reason that the code was written and compiled using JDK11).
+The project is set up to compile with JDK11 but will run on JDK8+.
 
 ## Example output
 
-Solution score 0.921196
+Solution score 0.939130
 
-| Name         | Course 1     | Course 2     | Course 3     | Course 4     | # People     | # Tables     |
-| ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ |
-| Alice        | Table 1      | Table 1      | Table 1      | Table 1      | 16           | 1            |
-| Bob          | Table 2      | Table 2      | Table 2      | Table 2      | 16           | 1            |
-| Charlie      | Table 3      | Table 3      | Table 3      | Table 3      | 16           | 1            |
-| Dan          | Table 4      | Table 4      | Table 4      | Table 4      | 12           | 1            |
-| Eve          | Table 5      | Table 5      | Table 5      | Table 5      | 12           | 1            |
-| Faith        | Table 1      | Table 3      | Table 5      | Table 2      | 13           | 4            |
-| Grace        | Table 3      | Table 2      | Table 1      | Table 4      | 14           | 4            |
-| Heidi        | Table 1      | Table 5      | Table 2      | Table 4      | 13           | 4            |
-| Ivan         | Table 5      | Table 4      | Table 1      | Table 2      | 14           | 4            |
-| Judy         | Table 4      | Table 3      | Table 1      | Table 5      | 14           | 4            |
-| Kit          | Table 2      | Table 3      | Table 4      | Table 1      | 13           | 4            |
-| Laura        | Table 1      | Table 4      | Table 2      | Table 3      | 14           | 4            |
-| Mallory      | Table 3      | Table 1      | Table 2      | Table 5      | 12           | 4            |
-| Niaj         | Table 5      | Table 2      | Table 4      | Table 3      | 14           | 4            |
-| Olivia       | Table 2      | Table 1      | Table 5      | Table 3      | 14           | 4            |
-| Peggy        | Table 2      | Table 5      | Table 1      | Table 3      | 14           | 4            |
-| Quentin      | Table 3      | Table 1      | Table 2      | Table 5      | 12           | 4            |
-| Rupert       | Table 4      | Table 2      | Table 3      | Table 1      | 12           | 4            |
-| Sybil        | Table 3      | Table 2      | Table 5      | Table 1      | 13           | 4            |
-| Trent        | Table 1      | Table 3      | Table 4      | Table 2      | 12           | 4            |
-| Uma          | Table 2      | Table 4      | Table 3      | Table 1      | 13           | 4            |
-| Yoko         | Table 5      | Table 1      | Table 3      | Table 4      | 14           | 4            |
-| Zac          | Table 4      | Table 5      | Table 3      | Table 2      | 13           | 4            |
-
+| Name                 | Course 1 | Course 2 | Course 3 | Course 4 | # People | # Tables |
+| -------------------- | -------- | -------- | -------- | -------- | -------- | -------- |
+| **(h) Alice       ** | Alice    | Alice    | Alice    | Alice    | 16       | 1        |
+| **(h) Bob         ** | Bob      | Bob      | Bob      | Bob      | 13       | 1        |
+| **(h) Charlie     ** | Charlie  | Charlie  | Charlie  | Charlie  | 15       | 1        |
+| **(h) Dan         ** | Dan      | Dan      | Dan      | Dan      | 14       | 1        |
+| **(h) Eve         ** | Eve      | Eve      | Eve      | Eve      | 14       | 1        |
+| Faith                | Alice    | Charlie  | Eve      | Dan      | 13       | 4        |
+| Grace                | Bob      | Alice    | Eve      | Charlie  | 12       | 4        |
+| Heidi                | Dan      | Eve      | Bob      | Alice    | 12       | 4        |
+| Ivan                 | Charlie  | Dan      | Bob      | Alice    | 13       | 4        |
+| Judy                 | Alice    | Charlie  | Bob      | Dan      | 12       | 4        |
+| Kit                  | Eve      | Charlie  | Dan      | Alice    | 15       | 4        |
+| Laura                | Bob      | Dan      | Alice    | Eve      | 14       | 4        |
+| Mallory              | Charlie  | Eve      | Alice    | Dan      | 14       | 4        |
+| Niaj                 | Eve      | Bob      | Alice    | Charlie  | 15       | 4        |
+| Olivia               | Charlie  | Alice    | Dan      | Eve      | 14       | 4        |
+| Peggy                | Dan      | Bob      | Eve      | Alice    | 14       | 4        |
+| Quentin              | Alice    | Dan      | Charlie  | Bob      | 12       | 4        |
+| Rupert               | Eve      | Alice    | Charlie  | Bob      | 12       | 4        |
+| Sybil                | Charlie  | Bob      | Dan      | Eve      | 13       | 4        |
+| Trent                | Alice    | Eve      | Dan      | Charlie  | 15       | 4        |
+| Uma                  | Dan      | Charlie  | Alice    | Bob      | 15       | 4        |
+| Yoko                 | Dan      | Bob      | Charlie  | Eve      | 13       | 4        |
+| Zac                  | Bob      | Alice    | Eve      | Charlie  | 12       | 4        |
